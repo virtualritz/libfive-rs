@@ -20,7 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:warning={:?}", eigen.include_paths);*/
 
-    let libfive_path = cmake::build("libfive");
+    let libfive_path = cmake::Config::new("libfive")
+        .define("BUILD_STUDIO_APP", "OFF")
+        .define("BUILD_GUILE_BINDINGS", "OFF")
+        .define("BUILD_PYTHON_BINDINGS", "OFF")
+        .build();
 
     let mut libfive_include_path = libfive_path.clone();
     libfive_include_path.push("include");
@@ -41,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bindings = bindgen::Builder::default()
         .header("wrapper.hpp")
         .derive_debug(true)
-        .clang_arg("-std=c++11")
+        .clang_arg("-std=c++17")
         .clang_arg("-stdlib=libc++")
         .clang_arg("-isysroot/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk")
         .clang_arg("-I/usr/local/include/eigen3")
