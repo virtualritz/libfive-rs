@@ -1,10 +1,9 @@
-[package]
-name = "libfive-sys"
-version = "0.1.0"
-authors = ["Moritz Moeller <virtualritz@gmail.com>"]
-edition = "2018"
+[workspace]
+members = [
+    'libfive-sys',
+    'libfive'
+]
+resolver = "2"
 
-[build-dependencies]
-cmake = "0.1.45"
-bindgen = "0.58.1"
-vcpkg = "0.2.12"
+[profile.dev]
+split-debuginfo = "unpacked"
