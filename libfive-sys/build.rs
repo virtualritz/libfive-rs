@@ -1,14 +1,10 @@
 // build.rs
 extern crate bindgen;
 
-use std::{
-    env,
-    path::PathBuf,
-};
+use std::{env, path::PathBuf};
 //use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     println!("cargo:rerun-if-changed=wrapper.hpp");
 
     let libfive_path = cmake::Config::new("libfive")
@@ -23,13 +19,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut libfive_lib_path = libfive_path.clone();
     libfive_lib_path.push("lib");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    //println!("cargo:warning={}", libfive_lib_path);
 
     // Emit linker searchpath
-    println!("cargo:rustc-link-search={:?}", libfive_lib_path);
-    // Link to lib3delight
-    println!("cargo:rustc-link-lib=dylib=five");
+    println!("cargo:rustc-link-search={}", libfive_lib_path.display());
+    // Link to libfive
+    println!("cargo:rustc-link-lib=five");
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
@@ -37,11 +32,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allowlist_type("libfive.*")
         .allowlist_function("libfive.*")
         .clang_arg("-isysroot/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk")
-        .clang_arg("-I/usr/local/include/eigen3")
-        .clang_arg("-I/usr/local/include")
+        //.clang_arg("-I/usr/local/include/eigen3")
+        //.clang_arg("-I/usr/local/include")
         .clang_arg(format!("-I{}", libfive_include_path.display()))
         .generate()
         .expect("Unable to generate libfive bindings");
+
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     bindings
