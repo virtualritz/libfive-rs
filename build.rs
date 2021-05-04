@@ -11,15 +11,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-changed=wrapper.hpp");
 
-    /*
-    eprintln!("Building Eigen3");
-    let eigen = vcpkg::Config::new()
-        .emit_includes(true)
-        .find_package("eigen3")
-        .unwrap();
-
-    println!("cargo:warning={:?}", eigen.include_paths);*/
-
     let libfive_path = cmake::Config::new("libfive")
         .define("BUILD_STUDIO_APP", "OFF")
         .define("BUILD_GUILE_BINDINGS", "OFF")
@@ -35,25 +26,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    println!("cargo:warning={:?}", libfive_include_path);
-
     // Emit linker searchpath
     println!("cargo:rustc-link-search={:?}", libfive_lib_path);
     // Link to lib3delight
     println!("cargo:rustc-link-lib=dylib=five");
 
     let bindings = bindgen::Builder::default()
-        .header("wrapper.hpp")
+        .header("wrapper.h")
         .derive_debug(true)
-        .clang_arg("-std=c++17")
-        .clang_arg("-stdlib=libc++")
+        .allowlist_type("libfive.*")
+        .allowlist_function("libfive.*")
         .clang_arg("-isysroot/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk")
         .clang_arg("-I/usr/local/include/eigen3")
         .clang_arg("-I/usr/local/include")
         .clang_arg(format!("-I{}", libfive_include_path.display()))
-        //.clang_arg("-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/")
-        //.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/")
-        //.parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("Unable to generate libfive bindings");
 
