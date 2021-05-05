@@ -1,7 +1,22 @@
 //! A set of tools for solid modeling, especially suited for parametric and
 //! procedural design. It is infrastructure for generative design, mass
 //! customization, and domain-specific CAD tools
-
+//!
+//! ## Example
+//!
+//! Todo
+//!
+//! ## Features
+//!
+//! * `ahash` – On by default. Use [`ahash::AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
+//!   for hashing when mapping variable names. To disable and use the slower
+//!   [`std::collections::HashMap`] instead, unset default features in your
+//!   `Cargo.toml`:
+//!
+//!   ```toml
+//!   [dependencies.tobj]
+//!   default-features = false
+//!   ```
 use core::{
     ffi::c_void,
     marker::PhantomData,
@@ -9,7 +24,13 @@ use core::{
     ptr, slice,
 };
 use libfive_sys as sys;
-use std::{collections::HashMap, convert::TryInto, ffi::CString};
+use std::{convert::TryInto, ffi::CString};
+
+#[cfg(feature = "ahash")]
+type HashMap<K, V> = ahash::AHashMap<K, V>;
+
+#[cfg(not(feature = "ahash"))]
+type HashMap<K, V> = std::collections::HashMap<K, V>;
 
 pub enum Error {
     VariablesCouldNotBeUpdated,
@@ -213,7 +234,7 @@ impl Drop for Evaluator {
 }
 
 /// 2D bounding region.
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug)]
 pub struct Region2(sys::libfive_region2);
 
 impl Region2 {
@@ -232,10 +253,10 @@ impl Region2 {
 }
 
 /// 3D bounding region.
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug)]
 pub struct Region3(sys::libfive_region3);
 
-impl Region2 {
+impl Region3 {
     pub fn new(
         x_min: f32,
         x_max: f32,
@@ -244,7 +265,7 @@ impl Region2 {
         z_min: f32,
         z_max: f32,
     ) -> Self {
-        Self(sys::libfive_region2 {
+        Self(sys::libfive_region3 {
             X: sys::libfive_interval {
                 lower: x_min,
                 upper: x_max,
@@ -626,5 +647,10 @@ fn test() {
 
     let out = &(&x2 + &y2) - &Tree::from(1.0);
 
-    out.save_slice(&Region2::new(-2.0, 2.0, -2.0, 2.0), 0.0, 10.0, "test.svg");
+    out.to_slice_svg(
+        &Region2::new(-2.0, 2.0, -2.0, 2.0),
+        0.0,
+        10.0,
+        "test.svg",
+    );
 }

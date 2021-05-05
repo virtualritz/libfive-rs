@@ -3,5 +3,9 @@ name = "libfive"
 version = "0.1.0"
 edition = "2018"
 
+[features]
+default = ["ahash"]
+
 [dependencies]
 libfive-sys = { path ="../libfive-sys" }
+ahash = { version = "0.7.2", optional = true }
