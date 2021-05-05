@@ -19,22 +19,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut libfive_lib_path = libfive_path.clone();
     libfive_lib_path.push("lib");
 
+    let mut stdlib_include_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    stdlib_include_path.push("libfive");
+    stdlib_include_path.push("libfive");
+    stdlib_include_path.push("stdlib");
+
     //println!("cargo:warning={}", libfive_lib_path);
 
     // Emit linker searchpath
     println!("cargo:rustc-link-search={}", libfive_lib_path.display());
     // Link to libfive
     println!("cargo:rustc-link-lib=five");
+    println!("cargo:rustc-link-lib=five-stdlib");
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
         .derive_debug(true)
         .allowlist_type("libfive.*")
         .allowlist_function("libfive.*")
-        .clang_arg("-isysroot/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk")
+        //.opaque_type("_.*")
+        //.blocklist_item("_.*")
+        //.blocklist_constants("*")
+        .clang_arg(
+            "-isysroot/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk",
+        )
         //.clang_arg("-I/usr/local/include/eigen3")
         //.clang_arg("-I/usr/local/include")
         .clang_arg(format!("-I{}", libfive_include_path.display()))
+        .clang_arg(format!("-I{}", stdlib_include_path.display()))
         .generate()
         .expect("Unable to generate libfive bindings");
 
