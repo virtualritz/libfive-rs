@@ -45,7 +45,7 @@
 //!
 //! ## Features
 //!
-//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/csg-shape.png" alt="Generated CSG Shape" width="33%" padding-left="15%" align="right" align="top">
+//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/csg-shape.png" alt="Generated CSG Shape" width="33%" padding-left="15%" align="right" align="top">
 //!
 //! * [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
 //!   for hashing when resolving variable names. Disabling this will fall back

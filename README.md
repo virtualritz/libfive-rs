@@ -1,4 +1,4 @@
-# `libfive` <img src="libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
+# `libfive` <img src="libfive/libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
 
 A Rust wrapper for [*libfive*](https://libfive.com/).
 

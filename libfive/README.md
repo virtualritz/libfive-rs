@@ -1,9 +1,9 @@
-# `libfive` <img src="../libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
+# `libfive` <img src="libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
 
 A Rust wrapper for [*libfive*](https://libfive.com/).
 ## Example
 
-<img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/csg-shape.png" alt="Generated CSG shape" width="33%" padding-left="5%" align="right" vertical-align="top">
+<img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/csg-shape.png" alt="Generated CSG shape" width="33%" padding-left="5%" align="right" vertical-align="top">
 
 ```rust
 use libfive::*;
