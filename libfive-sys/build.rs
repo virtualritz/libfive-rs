@@ -7,11 +7,16 @@ use std::{env, path::PathBuf};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=wrapper.hpp");
 
-    let libfive_path = cmake::Config::new("libfive")
-        .define("BUILD_STUDIO_APP", "OFF")
-        .define("BUILD_GUILE_BINDINGS", "OFF")
-        .define("BUILD_PYTHON_BINDINGS", "OFF")
-        .build();
+    let mut libfive_builder = cmake::Config::new("libfive");
+
+    libfive_builder.define("BUILD_STUDIO_APP", "OFF");
+    libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
+    libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
+
+    #[cfg(feature = "packed_opcodes")]
+    libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
+
+    let libfive_path = libfive_builder.build();
 
     let mut libfive_include_path = libfive_path.clone();
     libfive_include_path.push("include");

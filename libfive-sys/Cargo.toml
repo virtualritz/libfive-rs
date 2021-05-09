@@ -19,7 +19,11 @@ exclude = [
     "libfive/libfive/test/**/*",
 ]
 
+[features]
+# "Tightly pack opcodes (breaks compatibility with older saved f-reps).
+packed_opcodes = []
+
 [build-dependencies]
 cmake = "0.1.45"
 bindgen = "0.58.1"
-vcpkg = "0.2.12"
+#vcpkg = "0.2.12"

@@ -31,7 +31,7 @@
 //!             2.0.into(),
 //!             TreeVec3::new(0.0, 0.0, -1.0),
 //!         )
-//!         .reflect_xy(),
+//!         .reflect_yz(),
 //!     ]);
 //!
 //! csg_shape.to_stl(
@@ -58,8 +58,8 @@
 //!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
-//!
-//! * `std` – Use [`CString`]
+//! `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
+//! older saved f-rep files.
 use core::{
     convert::TryInto,
     ffi::c_void,
@@ -97,8 +97,10 @@ pub enum Error {
     VariablesCouldNotBeUpdated,
     /// The requested variable does not exist.
     VariableDoesNotExist,
-    /// The resp. file could not be opened.
-    FileOpenFailed,
+    /// The resp. file could not be opened for writing.
+    FileWriteFailed,
+    /// The resp. file could not be opened for reading..
+    FileReadFailed,
 }
 
 /// Trait to aid with using arbitrary 2D point types on a [`Contour`].
@@ -426,17 +428,17 @@ macro_rules! op_binary {
 /// * [Constant][`TreeFloat::from::<f32>()`]
 /// * [Bases](#bases)
 /// * [Functions](#functions)
-/// * [Evaluation, Export & Rendering](#eval)
-#[cfg_attr(feature = "nightly", doc(cfg(feature = "stdlib")))]
+/// * [Evaluation, import & export](#eval)
+///
 /// # Standard Library
 ///
-/// This is dependent on the `stdlib` feature.
+/// These features are dependent on the `stdlib` feature being enabled.
 ///
 /// * [Shapes](#shapes)
 /// * [Generators](#generators)
 /// * [Constructive solid geometry](#csg)
 /// * [Transformations](#transforms)
-/// * [Text](#text) (this is also dependent on the)
+/// * [Text](#text)
 pub struct Tree(sys::libfive_tree);
 
 /// An alias for [`Tree`].
@@ -500,7 +502,7 @@ impl Tree {
     fn_binary!(compare, Compare, rhs);
 }
 
-/// # Evaluation, Export & Rendering <a name="eval"></a>
+/// # Evaluation, Import & Export <a name="eval"></a>
 ///
 /// ## Common Arguments
 ///
@@ -683,7 +685,34 @@ impl Tree {
         } {
             Ok(())
         } else {
-            Err(Error::FileOpenFailed)
+            Err(Error::FileWriteFailed)
+        }
+    }
+
+    /// Serializes the tree to a file.
+    ///
+    /// The file format is not archival and may change without notice.
+    ///
+    /// Note that old files may fail to load if the `packed_opcodes` feature is
+    /// enabled.
+    pub fn save(&self, path: impl Into<Vec<u8>>) -> Result<()> {
+        let path = CString::new(path).unwrap();
+        if unsafe { sys::libfive_tree_save(self.0, path.as_ptr()) } {
+            Ok(())
+        } else {
+            Err(Error::FileWriteFailed)
+        }
+    }
+
+    /// Deserializes a tree from a file.
+    ///
+    /// Note that files may fail to load with older versions of `libfive` if
+    /// the `packed_opcodes` feature is enabled.
+    pub fn load(&self, path: impl Into<Vec<u8>>) -> Result<Tree> {
+        let path = CString::new(path).unwrap();
+        match unsafe { sys::libfive_tree_load(path.as_ptr()).as_mut() } {
+            Some(tree) => Ok(Self(tree as _)),
+            None => Err(Error::FileReadFailed),
         }
     }
 }
@@ -720,30 +749,6 @@ mod stdlib;
 #[cfg(feature = "stdlib")]
 pub use stdlib::*;
 
-/*
-#[test]
-fn test_svg() {
-    let x = Tree::x();
-    let x2 = x.square();
-
-    let y = Tree::y();
-    let y2 = y.square();
-
-    let sum = x2.add(&y2);
-
-    let one = Tree::from(1.0);
-
-    let out = sum.sub(&one);
-
-    out.to_slice_svg(
-        &Region2::new(-2.0, 2.0, -2.0, 2.0),
-        0.0,
-        10.0,
-        "test.svg",
-    );
-}
-*/
-
 #[test]
 fn test_2d() {
     let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
@@ -757,6 +762,7 @@ fn test_2d() {
 }
 
 #[test]
+#[cfg(feature = "stdlib")]
 fn test_3d() -> Result<()> {
     let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
         .difference_multi(vec![
@@ -777,7 +783,7 @@ fn test_3d() -> Result<()> {
                 2.0.into(),
                 TreeVec3::new(0.0, 0.0, -1.0),
             )
-            .reflect_xy(),
+            .reflect_yz(),
         ]);
 
     csg_shape.to_stl(

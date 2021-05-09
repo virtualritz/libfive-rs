@@ -98,6 +98,4 @@ impl Tree {
 }
 
 include!("transforms.rs");
-
-#[cfg(feature = "std")]
 include!("text.rs");

@@ -14,7 +14,8 @@ homepage = "https://libfive.com/"
 
 [features]
 default = ["ahash", "stdlib"]
-packed_opcodes = []
+# "Tightly pack opcodes (breaks compatibility with older saved f-reps).
+packed_opcodes = ["libfive-sys/packed_opcodes"]
 stdlib = []
 
 [dependencies]
