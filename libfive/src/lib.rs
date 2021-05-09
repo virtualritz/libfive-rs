@@ -1,3 +1,6 @@
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive-logo.png"
+)]
 //! A set of tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
 //! Particulalry suited for parametric- and procedural design.
 //!
@@ -11,16 +14,17 @@
 //! ## Features
 //!
 //! * [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
-//!   for hashing when reading files and merging vertices. To disable and use
-//!   the slower [`HashMap`](std::collections::HashMap) instead, unset default
+//!   for hashing when resolving variable names. Disabling this will fall back
+//!   to the slower [`HashMap`](std::collections::HashMap).
 //!
-//! * `stdlib` – On by default. Add an extensive list of higher level
-//!   operations.
+//! * `stdlib` – On by default. Add an extensive list of higher level operations
+//!   – the *libfive stdlib*.
 //!
-//! features in `Cargo.toml`:
+//! To disable either/both of the above features unset default features in
+//! `Cargo.toml`:
 //!
 //!   ```toml
-//!   [dependencies.tobj]
+//!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
 use core::{
@@ -365,23 +369,41 @@ macro_rules! op_binary {
 
 /// Tree of operations.
 ///
+/// # Core
+///
+/// * [Constant][`TreeFloat::from::<f32>()`]
 /// * [Bases](#bases)
-/// * [Core](#core)
-/// * [Constructive solid geometry](#csg)
+/// * [Functions](#functions)
+/// * [Evaluation, Export & Rendering](#eval)
+///
+/// # Standard Library
+///
+/// This is dependent on the `stdlib` feature.
+///
 /// * [Shapes](#shapes)
+/// * [Generators](#generators)
+/// * [Constructive solid geometry](#csg)
 /// * [Transformations](#transforms)
 /// * [Text](#text)
-/// * [Evaluation, Export & Rendering](#eval)
 pub struct Tree(sys::libfive_tree);
 
 /// An alias for [`Tree`].
 ///
-/// Useful to make the kind of expected input more obvious for some operators.
+/// Used to make the kind of sensible input more obvious for some operators.
 pub type TreeFloat = Tree;
 
 pub struct TreeVec2 {
     pub x: Tree,
     pub y: Tree,
+}
+
+impl Default for TreeVec2 {
+    fn default() -> Self {
+        Self {
+            x: Tree::from(0.0),
+            y: Tree::from(0.0),
+        }
+    }
 }
 
 pub struct TreeVec3 {
@@ -390,7 +412,40 @@ pub struct TreeVec3 {
     pub z: Tree,
 }
 
-/// ## Bases <a name="bases"></a>
+impl Default for TreeVec3 {
+    fn default() -> Self {
+        Self {
+            x: Tree::from(0.0),
+            y: Tree::from(0.0),
+            z: Tree::from(0.0),
+        }
+    }
+}
+
+/// # Constants <a name="constant"></a>
+impl From<f32> for TreeFloat {
+    /// Creates a constant [`Tree`].
+    fn from(constant: f32) -> Self {
+        Self(unsafe { sys::libfive_tree_const(constant) })
+    }
+}
+
+#[cfg(feature = "stdlib")]
+include!("shapes.rs");
+
+#[cfg(feature = "stdlib")]
+include!("generators.rs");
+
+#[cfg(feature = "stdlib")]
+include!("csg.rs");
+
+#[cfg(feature = "stdlib")]
+include!("transforms.rs");
+
+#[cfg(feature = "stdlib")]
+include!("text.rs");
+
+/// # Bases <a name="bases"></a>
 impl Tree {
     #[inline]
     pub fn x() -> Self {
@@ -408,14 +463,7 @@ impl Tree {
     }
 }
 
-impl From<f32> for TreeFloat {
-    /// Creates a constant. Most often you will use this for variables.
-    fn from(number: f32) -> Self {
-        Self(unsafe { sys::libfive_tree_const(number) })
-    }
-}
-
-/// ## Core <a name="core"></a>
+/// # Functions <a name="functions"></a>
 impl Tree {
     fn_unary!(square, Square);
     fn_unary!(sqrt, Sqrt);
@@ -449,9 +497,17 @@ impl Tree {
     fn_binary!(compare, Compare, rhs);
 }
 
-include!("stdlib.rs");
-
 /// # Evaluation, Export & Rendering <a name="eval"></a>
+///
+/// ## Common Arguments
+///
+/// * `region` – A bounding box that will be subdivided into an octree. For
+/// clean lines/triangles, it should be near-cubical, but that this is not a
+/// hard requirement.
+///
+/// * `resolution` – Should be approximately half the model's smallest feature
+///   size. Subdivision halts when all sides of the region are
+/// below it.
 impl Tree {
     /// Renders a 2D slice at the given `z` height into a [`Bitmap`].
     #[inline]
@@ -467,14 +523,6 @@ impl Tree {
     }
 
     /// Renders the tree to a [`TriangleMesh`].
-    ///
-    /// The `region` is a bounding box that will be subdivided into an octree.
-    /// For clean  triangles, it should be near-cubical, but that this is
-    /// not a hard requirement.
-    ///
-    /// The `resolution` should be approximately half the model's smallest
-    /// feature size. Subdivision halts when all sides of the region are
-    /// below it.
     pub fn to_triangle_mesh<T: Point3>(
         &self,
         region: &Region3,
@@ -512,14 +560,6 @@ impl Tree {
     }
 
     /// Renders a tree to a set of 2D contours.
-    ///
-    /// The `region` is a bounding box that will be subdivided into an octree.
-    /// For clean  triangles, it should be near-cubical, but that this is
-    /// not a hard requirement.
-    ///
-    /// The `resolution` should be approximately half the model's smallest
-    /// feature size. Subdivision halts when all sides of the region are
-    /// below it.
     pub fn to_slice_2d<T: Point2>(
         &self,
         region: Region2,
@@ -561,14 +601,6 @@ impl Tree {
     }
 
     /// Renders a tree to a set of 3D contours.
-    ///
-    /// The `region` is a bounding box that will be subdivided into an octree.
-    /// For clean  triangles, it should be near-cubical, but that this is
-    /// not a hard requirement.
-    ///
-    /// The `resolution` should be approximately half the model's smallest
-    /// feature size. Subdivision halts when all sides of the region are
-    /// below it.
     pub fn to_slice_3d<T: Point3>(
         &self,
         region: Region2,
@@ -677,11 +709,11 @@ fn test_svg() {
 
 #[test]
 fn test() {
-    let x = Tree::x();
+    let x2 = Tree::x().square();
 
     let out2 = {
-        let y = Tree::y();
-        x.union(&y)
+        let y2 = Tree::y().square();
+        x2.union(&y2)
     };
 
     out2.to_slice_svg(
@@ -692,21 +724,13 @@ fn test() {
     );
 }
 
-/*
 #[test]
 fn test2() {
-    let x = Tree2::x();
+    let hollow_sphere = sphere(Tree::from(1.0), TreeVec3::default())
+        .difference(sphere(Tree::from(0.6), TreeVec3::default()));
 
-    let out2 = {
-        let y = Tree2::y();
-        x.union_self(y)
-    };
-
-    /*
-    out1.to_slice_svg(
-        &Region2::new(-2.0, 2.0, -2.0, 2.0),
-        0.0,
-        10.0,
-        "test.svg",
-    );*/
-}*/
+    /*    (sphere 0.6 [0 0 0])
+    (cylinder-z 0.6 2 [0 0 -1])
+    (reflect-xz (cylinder-z 0.6 2 [0 0 -1]))
+    (reflect-yz (cylinder-z 0.6 2 [0 0 -1])))*/
+}
