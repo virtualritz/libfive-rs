@@ -1,8 +1,6 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive-logo.png"
 )]
-//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/csg-shape.png" alt="OpenSubdiv Logo" width="33%" padding-bottom="5%" align="right" align="top">
-//!
 //! A high level wrapper around [`libfive`](https://libfive.com/) – a set of
 //! tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
 //!
@@ -11,8 +9,6 @@
 //! domain-specific CAD tools.
 //!
 //! ## Example
-//!
-//! The codea below produces generates the mesh above.
 //!
 //! ```ignore
 //! # use libfive::*;
@@ -45,8 +41,11 @@
 //! )
 //! .expect("Could not write STL file.");
 //! ```
+//! The STL file generated from this code is show below..
 //!
 //! ## Features
+//!
+//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/csg-shape.png" alt="Generated CSG Shape" width="33%" padding-left="15%" align="right" align="top">
 //!
 //! * [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
 //!   for hashing when resolving variable names. Disabling this will fall back
