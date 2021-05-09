@@ -1,15 +1,46 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive-logo.png"
 )]
-//! A set of tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
-//! Particulalry suited for parametric- and procedural design.
+//! A high level wrapper around [`libfive`](https://libfive.com/) – a set of
+//! tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
 //!
-//! It is infrastructure for generative design, mass customization, and
+//! Particulalry suited for parametric- and procedural modeling. An
+//! infrastructure for generative design, mass customization, and
 //! domain-specific CAD tools.
 //!
 //! ## Example
 //!
-//! Todo
+//! ```ignore
+//! # use libfive::*;
+//! let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
+//!     .difference_multi(vec![
+//!         Tree::sphere(0.6.into(), TreeVec3::default()),
+//!         Tree::cylinder_z(
+//!             0.6.into(),
+//!             2.0.into(),
+//!             TreeVec3::new(0.0, 0.0, -1.0),
+//!         ),
+//!         Tree::cylinder_z(
+//!             0.6.into(),
+//!             2.0.into(),
+//!             TreeVec3::new(0.0, 0.0, -1.0),
+//!         )
+//!         .reflect_xz(),
+//!         Tree::cylinder_z(
+//!             0.6.into(),
+//!             2.0.into(),
+//!             TreeVec3::new(0.0, 0.0, -1.0),
+//!         )
+//!         .reflect_xy(),
+//!     ]);
+//!
+//! csg_shape.to_stl(
+//!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+//!     10.0,
+//!     "csg_shape.stl",
+//! )
+//! .expect("Could not write STL file.");
+//! ```
 //!
 //! ## Features
 //!
@@ -27,16 +58,16 @@
 //!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
+//!
+//! * `std` – Use [`CString`]
 use core::{
+    convert::TryInto,
     ffi::c_void,
     ops::{Add, Div, Mul, Neg, Rem, Sub},
-    ptr, slice,
+    ptr, result, slice,
 };
 use libfive_sys as sys;
-use std::{
-    convert::TryInto,
-    ffi::{CStr, CString},
-};
+use std::ffi::CString;
 
 #[cfg(feature = "ahash")]
 type HashMap<K, V> = ahash::AHashMap<K, V>;
@@ -44,9 +75,30 @@ type HashMap<K, V> = ahash::AHashMap<K, V>;
 #[cfg(not(feature = "ahash"))]
 type HashMap<K, V> = std::collections::HashMap<K, V>;
 
+/// A specialized [`Result`] type for `libfive` operations.
+///
+/// This type is broadly used across `libvive` for any operation which may
+/// produce an error.
+///
+/// This typedef is generally used to avoid writing out [`Error`] directly and
+/// is otherwise a direct mapping to [`Result`].
+pub type Result<T> = result::Result<T, Error>;
+
+/// A list specifying general categories of errors.
+///
+/// This list is intended to grow over time and it is not recommended to
+/// exhaustively match against it.
+///
+/// [`libfive::Error`]: Error
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
 pub enum Error {
+    /// The sepcified variable could not be updated.
     VariablesCouldNotBeUpdated,
+    /// The requested variable does not exist.
     VariableDoesNotExist,
+    /// The resp. file could not be opened.
+    FileOpenFailed,
 }
 
 /// Trait to aid with using arbitrary 2D point types on a [`Contour`].
@@ -64,7 +116,7 @@ pub trait Point3 {
     fn z(&self) -> f32;
 }
 
-/// Series of 2D or 3D points forming a polyline.
+/// Series of 2D or 3D points forming a [polygonal chain](https://en.wikipedia.org/wiki/Polygonal_chain).
 pub type Contour<T> = Vec<T>;
 
 /// Bitmap representing occupancy in a slice of a [`Tree`].
@@ -199,7 +251,7 @@ impl Variables {
         Tree(tree)
     }
 
-    pub fn set(&mut self, name: &str, value: f32) -> Result<(), Error> {
+    pub fn set(&mut self, name: &str, value: f32) -> Result<()> {
         if let Some(&index) = self.map.get(name) {
             self.values[index] = value;
             Ok(())
@@ -227,7 +279,7 @@ impl Evaluator {
         })
     }
 
-    pub fn update(&mut self, variables: &Variables) -> Result<(), Error> {
+    pub fn update(&mut self, variables: &Variables) -> Result<()> {
         if unsafe {
             sys::libfive_evaluator_update_vars(self.0, variables.sys_variables)
         } {
@@ -375,7 +427,7 @@ macro_rules! op_binary {
 /// * [Bases](#bases)
 /// * [Functions](#functions)
 /// * [Evaluation, Export & Rendering](#eval)
-///
+#[cfg_attr(feature = "nightly", doc(cfg(feature = "stdlib")))]
 /// # Standard Library
 ///
 /// This is dependent on the `stdlib` feature.
@@ -384,43 +436,13 @@ macro_rules! op_binary {
 /// * [Generators](#generators)
 /// * [Constructive solid geometry](#csg)
 /// * [Transformations](#transforms)
-/// * [Text](#text)
+/// * [Text](#text) (this is also dependent on the)
 pub struct Tree(sys::libfive_tree);
 
 /// An alias for [`Tree`].
 ///
 /// Used to make the kind of sensible input more obvious for some operators.
 pub type TreeFloat = Tree;
-
-pub struct TreeVec2 {
-    pub x: Tree,
-    pub y: Tree,
-}
-
-impl Default for TreeVec2 {
-    fn default() -> Self {
-        Self {
-            x: Tree::from(0.0),
-            y: Tree::from(0.0),
-        }
-    }
-}
-
-pub struct TreeVec3 {
-    pub x: Tree,
-    pub y: Tree,
-    pub z: Tree,
-}
-
-impl Default for TreeVec3 {
-    fn default() -> Self {
-        Self {
-            x: Tree::from(0.0),
-            y: Tree::from(0.0),
-            z: Tree::from(0.0),
-        }
-    }
-}
 
 /// # Constants <a name="constant"></a>
 impl From<f32> for TreeFloat {
@@ -429,21 +451,6 @@ impl From<f32> for TreeFloat {
         Self(unsafe { sys::libfive_tree_const(constant) })
     }
 }
-
-#[cfg(feature = "stdlib")]
-include!("shapes.rs");
-
-#[cfg(feature = "stdlib")]
-include!("generators.rs");
-
-#[cfg(feature = "stdlib")]
-include!("csg.rs");
-
-#[cfg(feature = "stdlib")]
-include!("transforms.rs");
-
-#[cfg(feature = "stdlib")]
-include!("text.rs");
 
 /// # Bases <a name="bases"></a>
 impl Tree {
@@ -472,13 +479,9 @@ impl Tree {
     fn_unary!(cos, Cos);
     fn_unary!(tan, Tan);
     fn_unary!(asin, Asin);
-
-    /// Computes the arccosine of a `self`.
     fn_unary!(acos, Acos);
     fn_unary!(atan, Atan);
     fn_unary!(exp, Exp);
-
-    /// Computes the absolute value of `self`.
     fn_unary!(abs, Abs);
     fn_unary!(log, Log);
     fn_unary!(recip, Recip);
@@ -661,6 +664,34 @@ impl Tree {
             );
         }
     }
+
+    /// Computes a slice and saves it to `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format.
+    pub fn to_stl(
+        &self,
+        region: &Region3,
+        resolution: f32,
+        path: impl Into<Vec<u8>>,
+    ) -> Result<()> {
+        let path = CString::new(path).unwrap();
+        if unsafe {
+            sys::libfive_tree_save_mesh(
+                self.0,
+                region.0,
+                resolution,
+                path.as_ptr(),
+            )
+        } {
+            Ok(())
+        } else {
+            Err(Error::FileOpenFailed)
+        }
+    }
+}
+
+impl Clone for Tree {
+    fn clone(&self) -> Self {
+        Self(unsafe { sys::libfive_tree_clone(self.0) })
+    }
 }
 
 impl Drop for Tree {
@@ -682,6 +713,12 @@ impl Neg for Tree {
         Self(unsafe { sys::libfive_tree_unary(Op::Neg as _, self.0) })
     }
 }
+
+#[cfg(feature = "stdlib")]
+mod stdlib;
+
+#[cfg(feature = "stdlib")]
+pub use stdlib::*;
 
 /*
 #[test]
@@ -708,29 +745,46 @@ fn test_svg() {
 */
 
 #[test]
-fn test() {
-    let x2 = Tree::x().square();
+fn test_2d() {
+    let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
 
-    let out2 = {
-        let y2 = Tree::y().square();
-        x2.union(&y2)
-    };
-
-    out2.to_slice_svg(
+    circle.to_slice_svg(
         &Region2::new(-2.0, 2.0, -2.0, 2.0),
         0.0,
         10.0,
-        "test.svg",
+        "circle.svg",
     );
 }
 
 #[test]
-fn test2() {
-    let hollow_sphere = sphere(Tree::from(1.0), TreeVec3::default())
-        .difference(sphere(Tree::from(0.6), TreeVec3::default()));
+fn test_3d() -> Result<()> {
+    let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
+        .difference_multi(vec![
+            Tree::sphere(0.6.into(), TreeVec3::default()),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            ),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            )
+            .reflect_xz(),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            )
+            .reflect_xy(),
+        ]);
 
-    /*    (sphere 0.6 [0 0 0])
-    (cylinder-z 0.6 2 [0 0 -1])
-    (reflect-xz (cylinder-z 0.6 2 [0 0 -1]))
-    (reflect-yz (cylinder-z 0.6 2 [0 0 -1])))*/
+    csg_shape.to_stl(
+        &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+        10.0,
+        "csg_shape.stl",
+    )?;
+
+    Ok(())
 }
