@@ -1,6 +1,8 @@
-//! A set of tools for solid modeling, especially suited for parametric and
-//! procedural design. It is infrastructure for generative design, mass
-//! customization, and domain-specific CAD tools
+//! A set of tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
+//! Particulalry suited for parametric- and procedural design.
+//!
+//! It is infrastructure for generative design, mass customization, and
+//! domain-specific CAD tools.
 //!
 //! ## Example
 //!
@@ -8,10 +10,14 @@
 //!
 //! ## Features
 //!
-//! * `ahash` – On by default. Use [`ahash::AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
-//!   for hashing when mapping variable names. To disable and use the slower
-//!   [`std::collections::HashMap`] instead, unset default features in your
-//!   `Cargo.toml`:
+//! * [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
+//!   for hashing when reading files and merging vertices. To disable and use
+//!   the slower [`HashMap`](std::collections::HashMap) instead, unset default
+//!
+//! * `stdlib` – On by default. Add an extensive list of higher level
+//!   operations.
+//!
+//! features in `Cargo.toml`:
 //!
 //!   ```toml
 //!   [dependencies.tobj]
@@ -19,12 +25,14 @@
 //!   ```
 use core::{
     ffi::c_void,
-    marker::PhantomData,
     ops::{Add, Div, Mul, Neg, Rem, Sub},
     ptr, slice,
 };
 use libfive_sys as sys;
-use std::{convert::TryInto, ffi::CString};
+use std::{
+    convert::TryInto,
+    ffi::{CStr, CString},
+};
 
 #[cfg(feature = "ahash")]
 type HashMap<K, V> = ahash::AHashMap<K, V>;
@@ -58,17 +66,18 @@ pub type Contour<T> = Vec<T>;
 /// Bitmap representing occupancy in a slice of a [`Tree`].
 ///
 /// It contains `width()` * `height()` pixels, in row-major order.
-pub struct Bitmap<'a>(&'a mut sys::libfive_pixels);
+pub struct Bitmap(*mut sys::libfive_pixels);
 
-impl<'a> Bitmap<'a> {
+impl Bitmap {
     /// Returns the bitmap pixel buffer as a flat `[bool]` slice.
     ///
     /// The length is `width()` × `height()`.
     pub fn as_slice(&self) -> &[bool] {
+        let bitmap = unsafe { self.0.as_ref() }.unwrap();
         unsafe {
             slice::from_raw_parts(
-                self.0.pixels,
-                (self.0.width * self.0.height) as _,
+                bitmap.pixels,
+                (bitmap.width * bitmap.height) as _,
             )
         }
     }
@@ -77,10 +86,11 @@ impl<'a> Bitmap<'a> {
     ///
     /// The length is `width()` × `height()`.
     pub fn as_slice_mut(&mut self) -> &mut [bool] {
+        let bitmap = unsafe { self.0.as_mut() }.unwrap();
         unsafe {
             slice::from_raw_parts_mut(
-                self.0.pixels,
-                (self.0.width * self.0.height) as _,
+                bitmap.pixels,
+                (bitmap.width * bitmap.height) as _,
             )
         }
     }
@@ -93,16 +103,16 @@ impl<'a> Bitmap<'a> {
 
     /// Returns the width of the bitmap.
     pub fn width(&self) -> u32 {
-        self.0.width
+        unsafe { self.0.as_ref() }.unwrap().width
     }
 
     /// Returns the height of the bitmap.
     pub fn height(&self) -> u32 {
-        self.0.height
+        unsafe { self.0.as_ref() }.unwrap().height
     }
 }
 
-impl<'a> Drop for Bitmap<'a> {
+impl Drop for Bitmap {
     fn drop(&mut self) {
         unsafe { sys::libfive_pixels_delete(&mut self.0 as *mut _ as _) };
     }
@@ -182,10 +192,7 @@ impl Variables {
         self.sys_variables.values = self.values.as_ptr() as *const _ as _;
         self.sys_variables.size = self.variables.len().try_into().unwrap();
 
-        Tree {
-            tree,
-            _marker: PhantomData,
-        }
+        Tree(tree)
     }
 
     pub fn set(&mut self, name: &str, value: f32) -> Result<(), Error> {
@@ -212,7 +219,7 @@ pub struct Evaluator(sys::libfive_evaluator);
 impl Evaluator {
     pub fn new(tree: &Tree, variables: &Variables) -> Self {
         Self(unsafe {
-            sys::libfive_tree_evaluator(tree.tree, variables.sys_variables)
+            sys::libfive_tree_evaluator(tree.0, variables.sys_variables)
         })
     }
 
@@ -326,40 +333,30 @@ enum Op {
 
 macro_rules! fn_unary {
     ($func_name:ident, $op_code:ident) => {
+        #[inline]
         pub fn $func_name(&self) -> Self {
-            Self {
-                tree: unsafe {
-                    sys::libfive_tree_unary(Op::$op_code as _, self.tree)
-                },
-                _marker: PhantomData,
-            }
+            Self(unsafe { sys::libfive_tree_unary(Op::$op_code as _, self.0) })
         }
     };
 }
 
 macro_rules! fn_binary {
     ($func_name:ident, $op_code:ident, $other:ident) => {
-        pub fn $func_name(&self, $other: &Self) -> Self {
-            Self {
-                tree: unsafe {
-                    sys::libfive_tree_binary(
-                        Op::$op_code as _,
-                        self.tree,
-                        $other.tree,
-                    )
-                },
-                _marker: PhantomData,
-            }
+        #[inline]
+        pub fn $func_name(self, $other: Self) -> Self {
+            Self(unsafe {
+                sys::libfive_tree_binary(Op::$op_code as _, self.0, $other.0)
+            })
         }
     };
 }
 
 macro_rules! op_binary {
     ($func_name:ident, $op_code:ident) => {
-        impl<'a> $op_code for &Tree<'a> {
-            type Output = Tree<'a>;
-
-            fn $func_name(self, rhs: Self) -> Self::Output {
+        impl $op_code for Tree {
+            type Output = Tree;
+            #[inline]
+            fn $func_name(self, rhs: Tree) -> Self::Output {
                 self.$func_name(rhs)
             }
         }
@@ -367,36 +364,59 @@ macro_rules! op_binary {
 }
 
 /// Tree of operations.
-pub struct Tree<'a> {
-    tree: sys::libfive_tree,
-    // _marker needs to be invariant in 'a.
-    // See "Making a struct outlive a parameter given to a method of
-    // that struct": https://stackoverflow.com/questions/62374326/
-    _marker: PhantomData<*mut &'a ()>,
+///
+/// * [Bases](#bases)
+/// * [Core](#core)
+/// * [Constructive solid geometry](#csg)
+/// * [Shapes](#shapes)
+/// * [Transformations](#transforms)
+/// * [Text](#text)
+/// * [Evaluation, Export & Rendering](#eval)
+pub struct Tree(sys::libfive_tree);
+
+/// An alias for [`Tree`].
+///
+/// Useful to make the kind of expected input more obvious for some operators.
+pub type TreeFloat = Tree;
+
+pub struct TreeVec2 {
+    pub x: Tree,
+    pub y: Tree,
 }
 
-impl<'a> Tree<'a> {
+pub struct TreeVec3 {
+    pub x: Tree,
+    pub y: Tree,
+    pub z: Tree,
+}
+
+/// ## Bases <a name="bases"></a>
+impl Tree {
+    #[inline]
     pub fn x() -> Self {
-        Self {
-            tree: unsafe { sys::libfive_tree_x() },
-            _marker: PhantomData,
-        }
+        Self(unsafe { sys::libfive_tree_x() })
     }
 
+    #[inline]
     pub fn y() -> Self {
-        Self {
-            tree: unsafe { sys::libfive_tree_y() },
-            _marker: PhantomData,
-        }
+        Self(unsafe { sys::libfive_tree_y() })
     }
 
+    #[inline]
     pub fn z() -> Self {
-        Self {
-            tree: unsafe { sys::libfive_tree_z() },
-            _marker: PhantomData,
-        }
+        Self(unsafe { sys::libfive_tree_z() })
     }
+}
 
+impl From<f32> for TreeFloat {
+    /// Creates a constant. Most often you will use this for variables.
+    fn from(number: f32) -> Self {
+        Self(unsafe { sys::libfive_tree_const(number) })
+    }
+}
+
+/// ## Core <a name="core"></a>
+impl Tree {
     fn_unary!(square, Square);
     fn_unary!(sqrt, Sqrt);
     fn_unary!(neg, Neg);
@@ -404,9 +424,13 @@ impl<'a> Tree<'a> {
     fn_unary!(cos, Cos);
     fn_unary!(tan, Tan);
     fn_unary!(asin, Asin);
+
+    /// Computes the arccosine of a `self`.
     fn_unary!(acos, Acos);
     fn_unary!(atan, Atan);
     fn_unary!(exp, Exp);
+
+    /// Computes the absolute value of `self`.
     fn_unary!(abs, Abs);
     fn_unary!(log, Log);
     fn_unary!(recip, Recip);
@@ -423,23 +447,23 @@ impl<'a> Tree<'a> {
     fn_binary!(rem, Mod, rhs);
     fn_binary!(nan_fill, NanFill, rhs);
     fn_binary!(compare, Compare, rhs);
+}
 
+include!("stdlib.rs");
+
+/// # Evaluation, Export & Rendering <a name="eval"></a>
+impl Tree {
     /// Renders a 2D slice at the given `z` height into a [`Bitmap`].
-    pub fn to_bitmap<'b>(
+    #[inline]
+    pub fn to_bitmap(
         &self,
         region: &Region2,
         z: f32,
         resolution: f32,
-    ) -> Bitmap<'b> {
-        Bitmap(
-            unsafe {
-                sys::libfive_tree_render_pixels(
-                    self.tree, region.0, z, resolution,
-                )
-                .as_mut()
-            }
-            .unwrap(),
-        )
+    ) -> Bitmap {
+        Bitmap(unsafe {
+            sys::libfive_tree_render_pixels(self.0, region.0, z, resolution)
+        })
     }
 
     /// Renders the tree to a [`TriangleMesh`].
@@ -457,8 +481,7 @@ impl<'a> Tree<'a> {
         resolution: f32,
     ) -> TriangleMesh<T> {
         let libfive_mesh = unsafe {
-            sys::libfive_tree_render_mesh(self.tree, region.0, resolution)
-                .as_mut()
+            sys::libfive_tree_render_mesh(self.0, region.0, resolution).as_mut()
         }
         .unwrap();
 
@@ -504,7 +527,7 @@ impl<'a> Tree<'a> {
         resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice(self.tree, region.0, z, resolution)
+            sys::libfive_tree_render_slice(self.0, region.0, z, resolution)
                 .as_ref()
         };
 
@@ -553,7 +576,7 @@ impl<'a> Tree<'a> {
         resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice3(self.tree, region.0, z, resolution)
+            sys::libfive_tree_render_slice3(self.0, region.0, z, resolution)
                 .as_ref()
         };
 
@@ -598,7 +621,7 @@ impl<'a> Tree<'a> {
         let path = CString::new(path).unwrap();
         unsafe {
             sys::libfive_tree_save_slice(
-                self.tree,
+                self.0,
                 region.0,
                 z,
                 resolution,
@@ -608,18 +631,9 @@ impl<'a> Tree<'a> {
     }
 }
 
-impl<'a> Drop for Tree<'a> {
+impl Drop for Tree {
     fn drop(&mut self) {
-        unsafe { sys::libfive_tree_delete(self.tree) };
-    }
-}
-
-impl<'a> From<f32> for Tree<'a> {
-    fn from(number: f32) -> Self {
-        Self {
-            tree: unsafe { sys::libfive_tree_const(number) },
-            _marker: PhantomData,
-        }
+        unsafe { sys::libfive_tree_delete(self.0) };
     }
 }
 
@@ -629,23 +643,28 @@ op_binary!(mul, Mul);
 op_binary!(rem, Rem);
 op_binary!(sub, Sub);
 
-impl<'a> Neg for &Tree<'a> {
-    type Output = Tree<'a>;
+impl Neg for Tree {
+    type Output = Tree;
 
     fn neg(self) -> Self::Output {
-        Self::Output {
-            tree: unsafe { sys::libfive_tree_unary(Op::Neg as _, self.tree) },
-            _marker: PhantomData,
-        }
+        Self(unsafe { sys::libfive_tree_unary(Op::Neg as _, self.0) })
     }
 }
 
+/*
 #[test]
-fn test() {
-    let x2 = Tree::x().square();
-    let y2 = Tree::y().square();
+fn test_svg() {
+    let x = Tree::x();
+    let x2 = x.square();
 
-    let out = &(&x2 + &y2) - &Tree::from(1.0);
+    let y = Tree::y();
+    let y2 = y.square();
+
+    let sum = x2.add(&y2);
+
+    let one = Tree::from(1.0);
+
+    let out = sum.sub(&one);
 
     out.to_slice_svg(
         &Region2::new(-2.0, 2.0, -2.0, 2.0),
@@ -654,3 +673,40 @@ fn test() {
         "test.svg",
     );
 }
+*/
+
+#[test]
+fn test() {
+    let x = Tree::x();
+
+    let out2 = {
+        let y = Tree::y();
+        x.union(&y)
+    };
+
+    out2.to_slice_svg(
+        &Region2::new(-2.0, 2.0, -2.0, 2.0),
+        0.0,
+        10.0,
+        "test.svg",
+    );
+}
+
+/*
+#[test]
+fn test2() {
+    let x = Tree2::x();
+
+    let out2 = {
+        let y = Tree2::y();
+        x.union_self(y)
+    };
+
+    /*
+    out1.to_slice_svg(
+        &Region2::new(-2.0, 2.0, -2.0, 2.0),
+        0.0,
+        10.0,
+        "test.svg",
+    );*/
+}*/
