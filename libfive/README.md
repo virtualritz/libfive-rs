@@ -48,6 +48,28 @@ Build docs locally:
 cargo doc -p libfive --no-deps --all-features --open
 ```
 
+## Features
+
+<img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/csg-shape.png" alt="Generated CSG Shape" width="33%" padding-left="15%" align="right" align="top">
+
+* [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
+  for hashing when resolving variable names. Disabling this will fall back
+  to the slower [`HashMap`](std::collections::HashMap).
+
+* `stdlib` – On by default. Add an extensive list of higher level operations
+  – the *libfive stdlib*.
+
+  To disable either/both of the above features unset default features in
+  `Cargo.toml`:
+
+  ```toml
+  [dependencies.libfive]
+  default-features = false
+  ```
+
+* `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
+  older saved f-rep files.
+
 ## Dependencies
 
 ### macOS

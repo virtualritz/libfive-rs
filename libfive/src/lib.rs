@@ -54,15 +54,15 @@
 //! * `stdlib` – On by default. Add an extensive list of higher level operations
 //!   – the *libfive stdlib*.
 //!
-//! To disable either/both of the above features unset default features in
-//! `Cargo.toml`:
+//!   To disable either/both of the above features unset default features in
+//!   `Cargo.toml`:
 //!
 //!   ```toml
 //!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
-//! `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
-//! older saved f-rep files.
+//! * `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
+//!   older saved f-rep files.
 use core::{
     convert::TryInto,
     ffi::c_void,
@@ -121,7 +121,8 @@ pub trait Point3 {
     fn z(&self) -> f32;
 }
 
-/// Series of 2D or 3D points forming a [polygonal chain](https://en.wikipedia.org/wiki/Polygonal_chain).
+/// Series of 2D or 3D points forming a
+/// [polygonal chain](https://en.wikipedia.org/wiki/Polygonal_chain).
 pub type Contour<T> = Vec<T>;
 
 /// Bitmap representing occupancy in a slice of a [`Tree`].
@@ -192,10 +193,10 @@ pub struct TriangleMesh<T: Point3> {
 
 /// Flat triangle mesh.
 ///
-/// The `positions` list has layout [x0, y0, z0, x1, y0, z1, ...].
+/// The `positions` list has layout `[x0, y0, z0, x1, y1, z1, ...]`.
 ///
-/// The `triangles` list has layout [t0.v0, t0.v1, t0.v2, t1.v0, t1.v1, t1.v2,
-/// ...] where t*n* is triangle *n* and v*n* is vertex index *n*.
+/// The `triangles` list has layout `[t0.v0, t0.v1, t0.v2, t1.v0, t1.v1, t1.v2,
+/// ...]` where `t`*n* is triangle *n* and `v`*m* is vertex index *m*.
 pub struct FlatTriangleMesh {
     pub positions: Vec<f32>,
     pub triangles: Vec<u32>,
