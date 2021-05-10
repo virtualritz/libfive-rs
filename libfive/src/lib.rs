@@ -1,5 +1,5 @@
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive-logo.png"
+    html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/libfive-logo.png"
 )]
 //! A high level wrapper around [`libfive`](https://libfive.com/) – a set of
 //! tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
@@ -12,7 +12,8 @@
 //!
 //! ```ignore
 //! # use libfive::*;
-//! let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
+//! # fn example() -> Result<()> {
+//! let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
 //!     .difference_multi(vec![
 //!         Tree::sphere(0.6.into(), TreeVec3::default()),
 //!         Tree::cylinder_z(
@@ -35,11 +36,11 @@
 //!     ]);
 //!
 //! csg_shape.to_stl(
-//!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-//!     10.0,
 //!     "csg_shape.stl",
-//! )
-//! .expect("Could not write STL file.");
+//!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+//!     &BRepSettings::default(),
+//! )?;
+//! # }
 //! ```
 //! The STL file generated from this code is show below..
 //!
@@ -66,10 +67,12 @@
 use core::{
     convert::TryInto,
     ffi::c_void,
+    mem,
     ops::{Add, Div, Mul, Neg, Rem, Sub},
     ptr, result, slice,
 };
 use libfive_sys as sys;
+use num_enum::{FromPrimitive, IntoPrimitive};
 use std::ffi::CString;
 
 #[cfg(feature = "ahash")]
@@ -98,12 +101,16 @@ pub type Result<T> = result::Result<T, Error>;
 pub enum Error {
     /// The sepcified variable could not be updated.
     VariablesCouldNotBeUpdated,
-    /// The requested variable does not exist.
-    VariableDoesNotExist,
+    /// The requested variable could not be found.
+    VariableNotFound,
+    /// The variable with this name was already added,
+    VariableAlreadyAdded,
     /// The resp. file could not be opened for writing.
     FileWriteFailed,
     /// The resp. file could not be opened for reading..
     FileReadFailed,
+    /// The queried tree is not a constant.
+    TreeIsNotConstant,
 }
 
 /// Trait to aid with using arbitrary 2D point types on a [`Contour`].
@@ -221,6 +228,55 @@ impl<T: Point3> From<TriangleMesh<T>> for FlatTriangleMesh {
     }
 }
 
+/// The algorithm used for computing a
+/// [boundary representation](https://en.wikipedia.org/wiki/Boundary_representation)
+/// from a [`Tree`].
+#[derive(Copy, Clone, Debug, Eq, FromPrimitive, IntoPrimitive, PartialEq)]
+#[repr(u32)]
+pub enum BRepAlgorithm {
+    #[num_enum(default)]
+    DualContouring = sys::libfive_brep_alg_DUAL_CONTOURING as _,
+    IsoSimplex = sys::libfive_brep_alg_ISO_SIMPLEX as _,
+    Hybrid = sys::libfive_brep_alg_HYBRID as _,
+}
+
+/// [Boundary representation](https://en.wikipedia.org/wiki/Boundary_representation)
+/// settings passed to any of the rendering/export functions.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct BRepSettings {
+    /// The meshing region is subdivided until the smallest region’s edge is
+    /// below 1/`resolution` in size. Make this larger to get a higher
+    /// resolution model.
+    pub resolution: f32,
+    /// This value is used when deciding whether to collapse cells. If it is
+    /// very large, then only linear regions are merged.  Set as `0.1` to
+    /// completely disable cell merging.
+    pub quality: f32,
+    /// Number of worker threads to use while meshing.  Set as 0 to use the
+    /// platform's-default number of threads.
+    pub workers: u32,
+    /// The meshing algorithm.
+    pub algorithm: BRepAlgorithm,
+}
+
+/// Defaults for rendering a [`Tree`].
+///
+/// `resolution`: `10`
+/// `quality`: `8`
+/// `workers`: `0` (determined autmatically)
+/// `algorithm`: [`DualContouring`](Algorithm::DualLContouring)
+impl Default for BRepSettings {
+    fn default() -> Self {
+        let s = unsafe { sys::libfive_brep_settings_default() };
+        Self {
+            resolution: s.res,
+            quality: s.quality,
+            workers: s.workers,
+            algorithm: s.alg.into(),
+        }
+    }
+}
+
 /// Set of variables to parameterize a [`Tree`].
 pub struct Variables {
     map: HashMap<String, usize>,
@@ -229,7 +285,14 @@ pub struct Variables {
     sys_variables: sys::libfive_vars,
 }
 
+impl Default for Variables {
+    fn default() -> Self {
+        Variables::new()
+    }
+}
+
 impl Variables {
+    /// Creates a new, empty set of variables.
     pub fn new() -> Self {
         Self {
             map: HashMap::new(),
@@ -243,32 +306,51 @@ impl Variables {
         }
     }
 
-    pub fn add(&mut self, name: &str, value: f32) -> Tree {
-        let tree = unsafe { sys::libfive_tree_var() };
-        let id = unsafe { sys::libfive_tree_id(tree) };
+    /// Adds the variable `name` to the set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::VariableAlreadyAdded`] if the variable already exists
+    /// in the set.
+    pub fn add(&mut self, name: &str, value: f32) -> Result<Tree> {
+        let name = name.to_string();
+        if self.map.contains_key(&name) {
+            Err(Error::VariableAlreadyAdded)
+        } else {
+            let tree = unsafe { sys::libfive_tree_var() };
+            let id = unsafe { sys::libfive_tree_id(tree) };
 
-        self.map.insert(name.to_string(), self.variables.len());
-        self.variables.push(id);
-        self.values.push(value);
-        self.sys_variables.vars = self.variables.as_ptr() as *const _ as _;
-        self.sys_variables.values = self.values.as_ptr() as *const _ as _;
-        self.sys_variables.size = self.variables.len().try_into().unwrap();
+            self.map.insert(name, self.variables.len());
+            self.variables.push(id);
+            self.values.push(value);
+            // Update struct.
+            self.sys_variables.vars = self.variables.as_ptr() as *const _ as _;
+            self.sys_variables.values = self.values.as_ptr() as *const _ as _;
+            self.sys_variables.size = self.variables.len().try_into().unwrap();
 
-        Tree(tree)
+            Ok(Tree(tree))
+        }
     }
 
+    /// Sets the variable `name` to `value`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::VariableNotFound`] if the variable does not exist in
+    /// the set.
     pub fn set(&mut self, name: &str, value: f32) -> Result<()> {
         if let Some(&index) = self.map.get(name) {
             self.values[index] = value;
             Ok(())
         } else {
-            Err(Error::VariableDoesNotExist)
+            Err(Error::VariableNotFound)
         }
     }
 }
 
 impl Drop for Variables {
     fn drop(&mut self) {
+        println!("Dropping");
         unsafe {
             sys::libfive_vars_delete(&mut self.sys_variables as *mut _ as _)
         };
@@ -294,6 +376,27 @@ impl Evaluator {
             Ok(())
         }
     }
+
+    pub fn to_stl(
+        &self,
+        path: impl Into<Vec<u8>>,
+        region: &Region3,
+        settings: &BRepSettings,
+    ) -> Result<()> {
+        let path = CString::new(path).unwrap();
+        if unsafe {
+            sys::libfive_evaluator_save_mesh(
+                self.0,
+                region.0,
+                mem::transmute(*settings),
+                path.as_ptr(),
+            )
+        } {
+            Ok(())
+        } else {
+            Err(Error::FileWriteFailed)
+        }
+    }
 }
 
 impl Drop for Evaluator {
@@ -303,7 +406,7 @@ impl Drop for Evaluator {
 }
 
 /// 2D bounding region.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Region2(sys::libfive_region2);
 
 impl Region2 {
@@ -322,7 +425,7 @@ impl Region2 {
 }
 
 /// 3D bounding region.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Region3(sys::libfive_region3);
 
 impl Region3 {
@@ -443,7 +546,14 @@ macro_rules! op_binary {
 /// * [Constructive solid geometry](#csg)
 /// * [Transformations](#transforms)
 /// * [Text](#text)
+#[derive(Eq, PartialEq)]
 pub struct Tree(sys::libfive_tree);
+
+impl Clone for Tree {
+    fn clone(&self) -> Self {
+        Self(unsafe { sys::libfive_tree_clone(self.0) })
+    }
+}
 
 /// An alias for [`Tree`].
 ///
@@ -474,6 +584,8 @@ impl Tree {
     pub fn z() -> Self {
         Self(unsafe { sys::libfive_tree_z() })
     }
+
+    //pub fn variable() -> Self {}
 }
 
 /// # Functions <a name="functions"></a>
@@ -504,6 +616,31 @@ impl Tree {
     fn_binary!(rem, Mod, rhs);
     fn_binary!(nan_fill, NanFill, rhs);
     fn_binary!(compare, Compare, rhs);
+
+    /// Checks if the tree is a variable.
+    pub fn is_variable(&self) -> bool {
+        unsafe { sys::libfive_tree_is_var(self.0) }
+    }
+
+    /// Returns the value of the tree if it is constant.
+    ///
+    /// I.e. if it was created from an [`f32`] value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::TreeIsNotConstant`] if the tree is not constant.
+    pub fn as_f32(&self) -> Result<f32> {
+        let mut success = false;
+        let value = unsafe {
+            sys::libfive_tree_get_const(self.0, &mut success as *mut _)
+        };
+
+        if success {
+            Ok(value)
+        } else {
+            Err(Error::TreeIsNotConstant)
+        }
+    }
 }
 
 /// # Evaluation, Import & Export <a name="eval"></a>
@@ -535,90 +672,107 @@ impl Tree {
     pub fn to_triangle_mesh<T: Point3>(
         &self,
         region: &Region3,
-        resolution: f32,
-    ) -> TriangleMesh<T> {
-        let libfive_mesh = unsafe {
-            sys::libfive_tree_render_mesh(self.0, region.0, resolution).as_mut()
+        settings: &BRepSettings,
+    ) -> Option<TriangleMesh<T>> {
+        match unsafe {
+            sys::libfive_tree_render_mesh(
+                self.0,
+                region.0,
+                mem::transmute(*settings),
+            )
+            .as_mut()
+        } {
+            Some(raw_mesh) => {
+                let mesh = TriangleMesh::<T> {
+                    positions: (0..raw_mesh.vert_count)
+                        .into_iter()
+                        .map(|index| {
+                            let vertex =
+                                &unsafe { *raw_mesh.verts.add(index as _) };
+                            T::new(vertex.x, vertex.y, vertex.z)
+                        })
+                        .collect(),
+                    triangles: (0..raw_mesh.tri_count)
+                        .into_iter()
+                        .map(|index| {
+                            let triangle =
+                                &unsafe { *raw_mesh.tris.add(index as _) };
+                            [triangle.a, triangle.b, triangle.c]
+                        })
+                        .collect(),
+                };
+
+                unsafe {
+                    sys::libfive_mesh_delete(raw_mesh as *mut _ as _);
+                }
+
+                Some(mesh)
+            }
+            None => None,
         }
-        .unwrap();
-
-        let mesh = TriangleMesh::<T> {
-            positions: (0..libfive_mesh.vert_count)
-                .into_iter()
-                .map(|index| {
-                    let vertex =
-                        &unsafe { *libfive_mesh.verts.add(index as _) };
-                    T::new(vertex.x, vertex.y, vertex.z)
-                })
-                .collect(),
-            triangles: (0..libfive_mesh.tri_count)
-                .into_iter()
-                .map(|index| {
-                    let triangle =
-                        &unsafe { *libfive_mesh.tris.add(index as _) };
-                    [triangle.a, triangle.b, triangle.c]
-                })
-                .collect(),
-        };
-
-        unsafe {
-            sys::libfive_mesh_delete(libfive_mesh as *mut _ as _);
-        }
-
-        mesh
     }
 
     /// Renders a tree to a set of 2D contours.
-    pub fn to_slice_2d<T: Point2>(
+    pub fn to_contour_2d<T: Point2>(
         &self,
         region: Region2,
         z: f32,
-        resolution: f32,
+        settings: &BRepSettings,
     ) -> Option<Vec<Contour<T>>> {
-        let raw_contours = unsafe {
-            sys::libfive_tree_render_slice(self.0, region.0, z, resolution)
-                .as_ref()
-        };
+        match unsafe {
+            sys::libfive_tree_render_slice(
+                self.0,
+                region.0,
+                z,
+                mem::transmute(*settings),
+            )
+            .as_mut()
+        } {
+            Some(raw_contours) => {
+                let contours = (0..raw_contours.count)
+                    .into_iter()
+                    .map(|index| {
+                        let contour =
+                            unsafe { raw_contours.cs.add(index as _).as_ref() }
+                                .unwrap();
+                        (0..contour.count)
+                            .into_iter()
+                            .map(|index| {
+                                let point = unsafe {
+                                    contour.pts.add(index as _).as_ref()
+                                }
+                                .unwrap();
+                                T::new(point.x, point.y)
+                            })
+                            .collect()
+                    })
+                    .collect();
 
-        if let Some(raw_contours) = raw_contours {
-            let contours = (0..raw_contours.count)
-                .into_iter()
-                .map(|index| {
-                    let contour =
-                        unsafe { raw_contours.cs.add(index as _).as_ref() }
-                            .unwrap();
-                    (0..contour.count)
-                        .into_iter()
-                        .map(|index| {
-                            let point =
-                                unsafe { contour.pts.add(index as _).as_ref() }
-                                    .unwrap();
-                            T::new(point.x, point.y)
-                        })
-                        .collect()
-                })
-                .collect();
+                unsafe {
+                    sys::libfive_contours_delete(raw_contours as *mut _ as _);
+                }
 
-            unsafe {
-                sys::libfive_contours_delete(&raw_contours as *const _ as _);
+                Some(contours)
             }
-
-            Some(contours)
-        } else {
-            None
+            None => None,
         }
     }
 
     /// Renders a tree to a set of 3D contours.
-    pub fn to_slice_3d<T: Point3>(
+    pub fn to_contour_3d<T: Point3>(
         &self,
         region: Region2,
         z: f32,
-        resolution: f32,
+        settings: &BRepSettings,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice3(self.0, region.0, z, resolution)
-                .as_ref()
+            sys::libfive_tree_render_slice3(
+                self.0,
+                region.0,
+                z,
+                mem::transmute(*settings),
+            )
+            .as_ref()
         };
 
         if let Some(raw_contours) = raw_contours {
@@ -651,39 +805,43 @@ impl Tree {
         }
     }
 
-    /// Computes a slice and saves it to `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format.
-    pub fn to_slice_svg(
+    /// Computes a contour and saves it to `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format.
+    pub fn to_svg(
         &self,
+        path: impl Into<Vec<u8>>,
         region: &Region2,
         z: f32,
-        resolution: f32,
-        path: impl Into<Vec<u8>>,
-    ) {
+        settings: &BRepSettings,
+    ) -> Result<()> {
         let path = CString::new(path).unwrap();
-        unsafe {
+        if unsafe {
             sys::libfive_tree_save_slice(
                 self.0,
                 region.0,
                 z,
-                resolution,
+                mem::transmute(*settings),
                 path.as_ptr(),
-            );
+            )
+        } {
+            Ok(())
+        } else {
+            Err(Error::FileWriteFailed)
         }
     }
 
-    /// Computes a slice and saves it to `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format.
+    /// Computes a mesh and saves it to `path` in [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
     pub fn to_stl(
         &self,
-        region: &Region3,
-        resolution: f32,
         path: impl Into<Vec<u8>>,
+        region: &Region3,
+        settings: &BRepSettings,
     ) -> Result<()> {
         let path = CString::new(path).unwrap();
         if unsafe {
             sys::libfive_tree_save_mesh(
                 self.0,
                 region.0,
-                resolution,
+                mem::transmute(*settings),
                 path.as_ptr(),
             )
         } {
@@ -721,12 +879,6 @@ impl Tree {
     }
 }
 
-impl Clone for Tree {
-    fn clone(&self) -> Self {
-        Self(unsafe { sys::libfive_tree_clone(self.0) })
-    }
-}
-
 impl Drop for Tree {
     fn drop(&mut self) {
         unsafe { sys::libfive_tree_delete(self.0) };
@@ -754,21 +906,23 @@ mod stdlib;
 pub use stdlib::*;
 
 #[test]
-fn test_2d() {
+fn test_2d() -> Result<()> {
     let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
 
     circle.to_slice_svg(
+        "circle.svg",
         &Region2::new(-2.0, 2.0, -2.0, 2.0),
         0.0,
-        10.0,
-        "circle.svg",
-    );
+        &BRepSettings::default(),
+    )?;
+
+    Ok(())
 }
 
 #[test]
 #[cfg(feature = "stdlib")]
 fn test_3d() -> Result<()> {
-    let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
+    let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
         .difference_multi(vec![
             Tree::sphere(0.6.into(), TreeVec3::default()),
             Tree::cylinder_z(
@@ -791,10 +945,60 @@ fn test_3d() -> Result<()> {
         ]);
 
     csg_shape.to_stl(
+        "csg_shape.stl",
+        &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+        &BRepSettings::default(),
+    )?;
+
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "stdlib")]
+fn test_eval_3d() -> Result<()> {
+    //let mut variables = Variables::new();
+
+    //let inner_radius = variables.add("inner_radius", 0.6)?;
+
+    let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
+        .difference_multi(vec![
+            Tree::sphere(0.6.into(), TreeVec3::default()),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            ),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            )
+            .reflect_xz(),
+            Tree::cylinder_z(
+                0.6.into(),
+                2.0.into(),
+                TreeVec3::new(0.0, 0.0, -1.0),
+            )
+            .reflect_yz(),
+        ]);
+
+    //let mut evaluator = Evaluator::new(&csg_shape, &variables);
+    //evaluator.update(&variables);
+
+    csg_shape.to_stl(
+        "csg_shape.stl",
+        &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+        &BRepSettings::default(),
+    )?;
+    /*
+    variables.set("inner_radius", 0.4);
+    evaluator.update(&variables);
+
+    csg_shape.to_stl(
+        "csg_shape_0_4.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
         10.0,
-        "csg_shape.stl",
-    )?;
+    )?;*/
 
     Ok(())
 }

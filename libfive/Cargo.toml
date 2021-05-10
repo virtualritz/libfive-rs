@@ -20,4 +20,5 @@ stdlib = []
 
 [dependencies]
 libfive-sys = { path ="../libfive-sys" }
+num_enum = "0.5.1"
 ahash = { version = "0.7.2", optional = true }

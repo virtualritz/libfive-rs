@@ -1,11 +1,24 @@
 // build.rs
-extern crate bindgen;
+//extern crate bindgen;
 
 use std::{env, path::PathBuf};
-//use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=wrapper.hpp");
+
+    // Dependencies -----------------------------------------------------------
+
+    /*
+    #[cfg(target_os = "macos")]
+    let lib = vcpkg::find_package("eigen");
+
+    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "windows")]
+    let lib = vcpkg::Config::new().copy_dlls(true).probe("eigen");
+
+    */
+
+    // libfive ----------------------------------------------------------------
 
     let mut libfive_builder = cmake::Config::new("libfive");
 
@@ -21,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut libfive_include_path = libfive_path.clone();
     libfive_include_path.push("include");
 
-    let mut libfive_lib_path = libfive_path.clone();
+    let mut libfive_lib_path = libfive_path;
     libfive_lib_path.push("lib");
 
     let mut stdlib_include_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -30,17 +43,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     stdlib_include_path.push("libfive");
     stdlib_include_path.push("stdlib");
 
-    //println!("cargo:warning={}", libfive_lib_path);
-
     // Emit linker searchpath
     println!("cargo:rustc-link-search={}", libfive_lib_path.display());
     // Link to libfive
     println!("cargo:rustc-link-lib=five");
     println!("cargo:rustc-link-lib=five-stdlib");
 
+    // libfive wrapper --------------------------------------------------------
+
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
         .derive_debug(true)
+        .derive_eq(true)
         .allowlist_type("libfive.*")
         .allowlist_function("libfive.*")
         //.opaque_type("_.*")

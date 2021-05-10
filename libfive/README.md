@@ -8,7 +8,7 @@ A Rust wrapper for [*libfive*](https://libfive.com/).
 ```rust
 use libfive::*;
 
-let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
+let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
     .difference_multi(vec![
         Tree::sphere(0.6.into(), TreeVec3::default()),
         Tree::cylinder_z(
@@ -31,11 +31,10 @@ let csg_shape = Tree::sphere(Tree::from(1.0), TreeVec3::default())
     ]);
 
 csg_shape.to_stl(
-    &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-    10.0,
     "csg_shape.stl",
-)
-.expect("Could not write STL file.");
+    &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
+    &BRepSettings::default(),
+)?;
 ```
 
 ## Documentation
