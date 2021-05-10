@@ -111,8 +111,6 @@ uncheck `Real-time protection`.
 
 In a Windows _Command Prompt_:
 ```
-mkdir vcpkg
-cd vcpkg
 git clone https://github.com/Microsoft/vcpkg.git
 .\vcpkg\bootstrap-vcpkg.bat
 .\vcpkg\vcpkg.exe install --triplet x64-windows eigen3 boost-container boost-bimap boost-interval boost-lockfree boost-functional boost-algorithm boost-math libpng
