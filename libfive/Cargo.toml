@@ -19,6 +19,6 @@ packed_opcodes = ["libfive-sys/packed_opcodes"]
 stdlib = []
 
 [dependencies]
-libfive-sys = { path ="../libfive-sys" }
+libfive-sys = "0.1.0"
 num_enum = "0.5.1"
 ahash = { version = "0.7.4", optional = true }
