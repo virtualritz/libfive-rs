@@ -13,7 +13,7 @@
 //! ```ignore
 //! # use libfive::*;
 //! # fn example() -> Result<()> {
-//! let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
+//! let f_rep_shape = Tree::sphere(1.0.into(), TreeVec3::default())
 //!     .difference_multi(vec![
 //!         Tree::sphere(0.6.into(), TreeVec3::default()),
 //!         Tree::cylinder_z(
@@ -35,8 +35,8 @@
 //!         .reflect_yz(),
 //!     ]);
 //!
-//! csg_shape.to_stl(
-//!     "csg_shape.stl",
+//! f_rep_shape.to_stl(
+//!     "f-rep-shape.stl",
 //!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
 //!     &BRepSettings::default(),
 //! )?;
@@ -905,7 +905,6 @@ mod stdlib;
 #[cfg(feature = "stdlib")]
 pub use stdlib::*;
 
-/*
 #[test]
 fn test_2d() -> Result<()> {
     let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
@@ -918,7 +917,7 @@ fn test_2d() -> Result<()> {
     )?;
 
     Ok(())
-}*/
+}
 
 #[test]
 #[cfg(feature = "stdlib")]

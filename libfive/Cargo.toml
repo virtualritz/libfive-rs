@@ -1,6 +1,6 @@
 [package]
 name = "libfive"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -19,6 +19,6 @@ packed_opcodes = ["libfive-sys/packed_opcodes"]
 stdlib = []
 
 [dependencies]
-libfive-sys = "0.1.0"
+libfive-sys = "0.1.1"
 num_enum = "0.5.1"
 ahash = { version = "0.7.4", optional = true }
