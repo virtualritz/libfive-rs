@@ -923,7 +923,7 @@ fn test_2d() -> Result<()> {
 #[test]
 #[cfg(feature = "stdlib")]
 fn test_3d() -> Result<()> {
-    let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
+    let f_rep_shape = Tree::sphere(1.0.into(), TreeVec3::default())
         .difference_multi(vec![
             Tree::sphere(0.6.into(), TreeVec3::default()),
             Tree::cylinder_z(
@@ -945,8 +945,8 @@ fn test_3d() -> Result<()> {
             .reflect_yz(),
         ]);
 
-    csg_shape.to_stl(
-        "csg_shape.stl",
+    f_rep_shape.to_stl(
+        "f-rep-shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
         &BRepSettings::default(),
     )?;

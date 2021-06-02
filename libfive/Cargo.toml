@@ -1,6 +1,6 @@
 [package]
 name = "libfive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -8,7 +8,7 @@ keywords = ["3d", "geometry", "graphics", "parametric", "procedural"]
 categories = ["graphics", "mathematics", "multimedia", "rendering"]
 license = "MPL-2.0"
 description = "Tools for solid modeling, especially suited for parametric and procedural design."
-documentation = "https://docs.rs/libfive-sys/"
+documentation = "https://docs.rs/libfive/"
 repository = "https://github.com/virtualritz/libfive-rs/"
 homepage = "https://libfive.com/"
 

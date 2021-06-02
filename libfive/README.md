@@ -3,12 +3,10 @@
 A Rust wrapper for [*libfive*](https://libfive.com/).
 ## Example
 
-<img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/csg-shape.png" alt="Generated CSG shape" width="33%" padding-left="5%" align="right" vertical-align="top">
-
 ```rust
 use libfive::*;
 
-let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
+let f_rep_shape = Tree::sphere(1.0.into(), TreeVec3::default())
     .difference_multi(vec![
         Tree::sphere(0.6.into(), TreeVec3::default()),
         Tree::cylinder_z(
@@ -30,12 +28,16 @@ let csg_shape = Tree::sphere(1.0.into(), TreeVec3::default())
         .reflect_yz(),
     ]);
 
-csg_shape.to_stl(
-    "csg_shape.stl",
+f_rep_shape.to_stl(
+    "f_rep_shape.stl",
     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
     &BRepSettings::default(),
 )?;
 ```
+
+This results in this STL mesh:
+
+<img src="f-rep-shape.png" alt="Generated f-rep. shape" width="33%">
 
 ## Documentation
 
