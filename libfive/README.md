@@ -1,4 +1,4 @@
-# `libfive` <img src="libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
+# `libfive` <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive/libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
 
 A Rust wrapper for [*libfive*](https://libfive.com/).
 ## Example
@@ -38,9 +38,6 @@ csg_shape.to_stl(
 ```
 
 ## Documentation
-
-Because of numerous external dependencies that need to be included, this is
-currently not hosted on `crates.io`.
 
 Build docs locally:
 ```
