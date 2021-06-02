@@ -7,47 +7,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=wrapper.hpp");
 
     // Dependencies -----------------------------------------------------------
-
+    // TODO: include & build deps.
     /*
     #[cfg(target_os = "macos")]
+    #[cfg(target_os = "linux")]
     let lib = vcpkg::find_package("eigen");
 
-    #[cfg(target_os = "linux")]
     #[cfg(target_os = "windows")]
     let lib = vcpkg::Config::new().copy_dlls(true).probe("eigen");
-
     */
 
     // libfive ----------------------------------------------------------------
 
-    let mut libfive_builder = cmake::Config::new("libfive");
+    // Base path of our libfive Git submodule repo.
+    let mut libfive_base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    libfive_base_path.push("libfive");
+    libfive_base_path.push("libfive");
 
-    libfive_builder.define("BUILD_STUDIO_APP", "OFF");
-    libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
-    libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
+    // Skip building on docs.rs as that would fail due to missing deps.
+    let libfive_include_path =
+        if env::var("DOCS_RS").is_err() {
+            let mut libfive_builder = cmake::Config::new("libfive");
 
-    #[cfg(feature = "packed_opcodes")]
-    libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
+            libfive_builder.define("BUILD_STUDIO_APP", "OFF");
+            libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
+            libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
 
-    let libfive_path = libfive_builder.build();
+            #[cfg(feature = "packed_opcodes")]
+            libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
 
-    let mut libfive_include_path = libfive_path.clone();
-    libfive_include_path.push("include");
+            let libfive_path = libfive_builder.build();
 
-    let mut libfive_lib_path = libfive_path;
-    libfive_lib_path.push("lib");
+            let mut libfive_include_path = libfive_path.clone();
+            libfive_include_path.push("include");
 
-    let mut stdlib_include_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let mut libfive_lib_path = libfive_path;
+            libfive_lib_path.push("lib");
 
-    stdlib_include_path.push("libfive");
-    stdlib_include_path.push("libfive");
+            // Emit linker searchpath
+            println!("cargo:rustc-link-search={}", libfive_lib_path.display());
+            // Link to libfive
+            println!("cargo:rustc-link-lib=five");
+            println!("cargo:rustc-link-lib=five-stdlib");
+
+            libfive_include_path
+        } else {
+            let mut libfive_include_path = libfive_base_path.clone();
+            libfive_include_path.push("include");
+
+            libfive_include_path
+        };
+
+    println!("{}", libfive_include_path.display());
+
+    let mut stdlib_include_path = libfive_base_path;
     stdlib_include_path.push("stdlib");
-
-    // Emit linker searchpath
-    println!("cargo:rustc-link-search={}", libfive_lib_path.display());
-    // Link to libfive
-    println!("cargo:rustc-link-lib=five");
-    println!("cargo:rustc-link-lib=five-stdlib");
 
     // libfive wrapper --------------------------------------------------------
 
