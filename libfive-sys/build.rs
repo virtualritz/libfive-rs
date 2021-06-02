@@ -29,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if env::var("DOCS_RS").is_err() {
             let mut libfive_builder = cmake::Config::new("libfive");
 
+            libfive_builder.define("BUILD_TESTS", "OFF");
             libfive_builder.define("BUILD_STUDIO_APP", "OFF");
             libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
             libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
