@@ -37,7 +37,7 @@ f_rep_shape.to_stl(
 
 This results in this STL mesh:
 
-<img src="f-rep-shape.png" alt="Generated f-rep. shape" width="33%">
+<img src="f-rep-shape.png" alt="Generated f-rep. shape" width="38%">
 
 ## Documentation
 

@@ -1,10 +1,11 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/libfive-logo.png"
 )]
-//! A high level wrapper around [`libfive`](https://libfive.com/) – a set of
-//! tools for solid modeling based on [functional representation](https://en.wikipedia.org/wiki/Function_representation).
+//! A high level wrapper around [`libfive`](https://libfive.com/) -- a set of
+//! tools for solid modeling based on
+//! [functional representation](https://en.wikipedia.org/wiki/Function_representation).
 //!
-//! Particulalry suited for parametric- and procedural modeling. An
+//! Particularly suited for parametric- and procedural modeling. An
 //! infrastructure for generative design, mass customization, and
 //! domain-specific CAD tools.
 //!
@@ -46,14 +47,14 @@
 //!
 //! ## Features
 //!
-//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/f-rep-shape.png" alt="Generated CSG Shape" width="33%" padding-left="15%" align="right" align="top">
+//! <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/HEAD/libfive/f-rep-shape.png" alt="Generated CSG Shape" width="38%" padding-left="15%" align="right" align="top">
 //!
-//! * [`ahash`](https://crates.io/crates/ahash) – On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
+//! * [`ahash`](https://crates.io/crates/ahash) -- On by default. Use [`AHashMap`](https://docs.rs/ahash/latest/ahash/struct.AHashMap.html)
 //!   for hashing when resolving variable names. Disabling this will fall back
 //!   to the slower [`HashMap`](std::collections::HashMap).
 //!
-//! * `stdlib` – On by default. Add an extensive list of higher level operations
-//!   – the *libfive stdlib*.
+//! * `stdlib` -- On by default. Add an extensive list of higher level
+//!   operations -- the [`libfive stdlib`](Tree#standard-library).
 //!
 //!   To disable either/both of the above features unset default features in
 //!   `Cargo.toml`:
@@ -62,8 +63,8 @@
 //!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
-//! * `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
-//!   older saved f-rep files.
+//! * `packed_opcodes` -- Tightly pack opcodes. This breaks compatibility with
+//!   older saved f-rep files. See [`Tree::save()/lood()`](Tree::save).
 use core::{
     convert::TryInto,
     ffi::c_void,
@@ -86,7 +87,7 @@ type HashMap<K, V> = std::collections::HashMap<K, V>;
 /// This type is broadly used across `libvive` for any operation which may
 /// produce an error.
 ///
-/// This typedef is generally used to avoid writing out [`Error`] directly and
+/// This type is generally used to avoid writing out [`Error`] directly and
 /// is otherwise a direct mapping to [`Result`].
 pub type Result<T> = result::Result<T, Error>;
 
@@ -164,7 +165,7 @@ impl Bitmap {
         }
     }
 
-    /// Returns the value of the poixel `x`, `y`.
+    /// Returns the value of the pixel `x`, `y`.
     pub fn pixel(&self, x: u32, y: u32) -> bool {
         assert!(x < self.width() && y < self.height());
         self.as_slice()[(y * self.height() + x) as usize]
@@ -244,9 +245,13 @@ pub enum BRepAlgorithm {
 /// settings passed to any of the rendering/export functions.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct BRepSettings {
-    /// The meshing region is subdivided until the smallest region’s edge is
+    /// The meshing region is subdivided until the smallest region's edge is
     /// below 1/`resolution` in size. Make this larger to get a higher
     /// resolution model.
+    ///
+    /// In other words: should be approximately half the model's smallest
+    /// feature size. Subdivision halts when all sides of the region are below
+    /// it.
     pub resolution: f32,
     /// This value is used when deciding whether to collapse cells. If it is
     /// very large, then only linear regions are merged.  Set as `0.1` to
@@ -263,7 +268,7 @@ pub struct BRepSettings {
 ///
 /// `resolution`: `10`
 /// `quality`: `8`
-/// `workers`: `0` (determined autmatically)
+/// `workers`: `0` (determined automatically)
 /// `algorithm`: [`DualContouring`](BRepAlgorithm::DualContouring)
 impl Default for BRepSettings {
     fn default() -> Self {
@@ -350,7 +355,6 @@ impl Variables {
 
 impl Drop for Variables {
     fn drop(&mut self) {
-        println!("Dropping");
         unsafe {
             sys::libfive_vars_delete(&mut self.sys_variables as *mut _ as _)
         };
@@ -628,7 +632,8 @@ impl Tree {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::TreeIsNotConstant`] if the tree is not constant.
+    /// Returns [`TreeIsNotConstant`](Error::TreeIsNotConstant) if the tree is
+    /// not constant.
     pub fn as_f32(&self) -> Result<f32> {
         let mut success = false;
         let value = unsafe {
@@ -647,15 +652,18 @@ impl Tree {
 ///
 /// ## Common Arguments
 ///
-/// * `region` – A bounding box that will be subdivided into an octree. For
-/// clean lines/triangles, it should be near-cubical, but that this is not a
-/// hard requirement.
+/// * `region` -- A bounding box that will be subdivided into an
+///   quadtree/octree.For clean lines/triangles, it should be near-cubical.But
+///   this is not a hard requirement.
 ///
-/// * `resolution` – Should be approximately half the model's smallest feature
-///   size. Subdivision halts when all sides of the region are
-/// below it.
+/// * `settings` -- See [`BRepSettings`].
 impl Tree {
     /// Renders a 2D slice at the given `z` height into a [`Bitmap`].
+    ///
+    /// ## Arguments
+    /// * `resolution` -- Should be approximately half the model's smallest
+    ///   feature size. Subdivision halts when all sides of the region are below
+    ///   it.
     #[inline]
     pub fn to_bitmap(
         &self,
@@ -855,8 +863,8 @@ impl Tree {
     ///
     /// The file format is not archival and may change without notice.
     ///
-    /// Note that old files may fail to load if the `packed_opcodes` feature is
-    /// enabled.
+    /// Note that files may fail to load with older versions of `libfive` if
+    /// the `packed_opcodes` feature is enabled.
     pub fn save(&self, path: impl Into<Vec<u8>>) -> Result<()> {
         let path = CString::new(path).unwrap();
         if unsafe { sys::libfive_tree_save(self.0, path.as_ptr()) } {
@@ -868,8 +876,8 @@ impl Tree {
 
     /// Deserializes a tree from a file.
     ///
-    /// Note that files may fail to load with older versions of `libfive` if
-    /// the `packed_opcodes` feature is enabled.
+    /// Note that old files may fail to load if the `packed_opcodes` feature is
+    /// enabled.
     pub fn load(&self, path: impl Into<Vec<u8>>) -> Result<Tree> {
         let path = CString::new(path).unwrap();
         match unsafe { sys::libfive_tree_load(path.as_ptr()).as_mut() } {
