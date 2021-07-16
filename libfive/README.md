@@ -88,6 +88,14 @@ Install the following dependencies with `apt`:
 sudo apt-get install cmake pkg-config libeigen3-dev libpng-dev libboost-all-dev
 ```
 
+### Arch Linux
+
+Install the following dependencies:
+
+```
+sudo pacman -S cmake pkgconf eigen libpng boost boost-libs
+```
+
 ### Windows (VS2019)
 
 Install [Git](https://git-scm.com/download/win), choosing settings so that it
