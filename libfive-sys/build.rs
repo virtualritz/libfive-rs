@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .derive_debug(true)
         .derive_eq(true)
         .allowlist_type("libfive.*")
-        .allowlist_function("libfive.*")
+        .allowlist_function(".*")
         //.opaque_type("_.*")
         //.blocklist_item("_.*")
         //.blocklist_constants("*")

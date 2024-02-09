@@ -1,2 +1,2 @@
 #include <libfive.h>
-#include <stdlib.h>
+#include <libfive_stdlib.h>
