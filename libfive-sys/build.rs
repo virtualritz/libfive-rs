@@ -1,5 +1,4 @@
 // build.rs
-//extern crate bindgen;
 
 use std::{env, path::PathBuf};
 
@@ -24,6 +23,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     libfive_base_path.push("libfive");
     libfive_base_path.push("libfive");
 
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+
     // Skip building on docs.rs as that would fail due to missing deps.
     let libfive_include_path = if env::var("DOCS_RS").is_err() {
         let mut libfive_builder = cmake::Config::new("libfive");
@@ -32,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         libfive_builder.define("BUILD_STUDIO_APP", "OFF");
         libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
         libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
+        libfive_builder.define("CMAKE_INSTALL_LIBDIR", out_path.join("lib"));
 
         #[cfg(feature = "packed_opcodes")]
         libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
@@ -83,9 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .clang_arg(format!("-I{}", stdlib_include_path.display()))
         .generate()
         .expect("Unable to generate libfive bindings");
-
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     bindings
