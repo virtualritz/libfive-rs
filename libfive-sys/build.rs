@@ -25,39 +25,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     libfive_base_path.push("libfive");
 
     // Skip building on docs.rs as that would fail due to missing deps.
-    let libfive_include_path =
-        if env::var("DOCS_RS").is_err() {
-            let mut libfive_builder = cmake::Config::new("libfive");
+    let libfive_include_path = if env::var("DOCS_RS").is_err() {
+        let mut libfive_builder = cmake::Config::new("libfive");
 
-            libfive_builder.define("BUILD_TESTS", "OFF");
-            libfive_builder.define("BUILD_STUDIO_APP", "OFF");
-            libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
-            libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
+        libfive_builder.define("BUILD_TESTS", "OFF");
+        libfive_builder.define("BUILD_STUDIO_APP", "OFF");
+        libfive_builder.define("BUILD_GUILE_BINDINGS", "OFF");
+        libfive_builder.define("BUILD_PYTHON_BINDINGS", "OFF");
 
-            #[cfg(feature = "packed_opcodes")]
-            libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
+        #[cfg(feature = "packed_opcodes")]
+        libfive_builder.define("LIBFIVE_PACKED_OPCODES", "ON");
 
-            let libfive_path = libfive_builder.build();
+        let libfive_path = libfive_builder.build();
 
-            let mut libfive_include_path = libfive_path.clone();
-            libfive_include_path.push("include");
+        let mut libfive_include_path = libfive_path.clone();
+        libfive_include_path.push("include");
 
-            let mut libfive_lib_path = libfive_path;
-            libfive_lib_path.push("lib");
+        let mut libfive_lib_path = libfive_path;
+        libfive_lib_path.push("lib");
 
-            // Emit linker searchpath
-            println!("cargo:rustc-link-search={}", libfive_lib_path.display());
-            // Link to libfive
-            println!("cargo:rustc-link-lib=five");
-            println!("cargo:rustc-link-lib=five-stdlib");
+        // Emit linker searchpath
+        println!("cargo:rustc-link-search={}", libfive_lib_path.display());
+        // Link to libfive
+        println!("cargo:rustc-link-lib=five");
+        println!("cargo:rustc-link-lib=five-stdlib");
 
-            libfive_include_path
-        } else {
-            let mut libfive_include_path = libfive_base_path.clone();
-            libfive_include_path.push("include");
+        libfive_include_path
+    } else {
+        let mut libfive_include_path = libfive_base_path.clone();
+        libfive_include_path.push("include");
 
-            libfive_include_path
-        };
+        libfive_include_path
+    };
 
     println!("{}", libfive_include_path.display());
 
