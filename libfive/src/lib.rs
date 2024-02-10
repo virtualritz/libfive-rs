@@ -219,7 +219,7 @@ impl<T: Point3> From<TriangleMesh<T>> for FlatTriangleMesh {
             triangles: mesh
                 .triangles
                 .into_iter()
-                .flat_map(|triangle| triangle)
+                .flatten()
                 .collect(),
         }
     }
@@ -619,7 +619,6 @@ impl Tree {
             Some(raw_mesh) => {
                 let mesh = TriangleMesh::<T> {
                     positions: (0..raw_mesh.vert_count)
-                        .into_iter()
                         .map(|index| {
                             let vertex =
                                 &unsafe { *raw_mesh.verts.add(index as _) };
@@ -627,7 +626,6 @@ impl Tree {
                         })
                         .collect(),
                     triangles: (0..raw_mesh.tri_count)
-                        .into_iter()
                         .map(|index| {
                             let triangle =
                                 &unsafe { *raw_mesh.tris.add(index as _) };
@@ -658,13 +656,11 @@ impl Tree {
         } {
             Some(raw_contours) => {
                 let contours = (0..raw_contours.count)
-                    .into_iter()
                     .map(|index| {
                         let contour =
                             unsafe { raw_contours.cs.add(index as _).as_ref() }
                                 .unwrap();
                         (0..contour.count)
-                            .into_iter()
                             .map(|index| {
                                 let point = unsafe {
                                     contour.pts.add(index as _).as_ref()
@@ -699,14 +695,12 @@ impl Tree {
 
         if let Some(raw_contours) = raw_contours {
             let contours = (0..raw_contours.count)
-                .into_iter()
                 .map(|index| {
                     let contour =
                         unsafe { raw_contours.cs.add(index as _).as_ref() }
                             .unwrap();
 
                     (0..contour.count)
-                        .into_iter()
                         .map(|index| {
                             let point =
                                 unsafe { contour.pts.add(index as _).as_ref() }
