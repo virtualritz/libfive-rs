@@ -36,7 +36,7 @@
 //!         .reflect_yz(),
 //!     ]);
 //!
-//! f_rep_shape.to_stl(
+//! f_rep_shape.write_stl(
 //!     "f-rep-shape.stl",
 //!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
 //!     0.01,
@@ -597,7 +597,8 @@ impl Tree {
 ///   To not loose any detail this should be approximately half the model's
 ///   smallest feature size.
 impl Tree {
-    /// Renders a 2D slice of `region` at the given `z` height into a [`Bitmap`].
+    /// Renders a 2D slice of `region` at the given `z` height into a
+    /// [`Bitmap`].
     #[inline]
     pub fn to_bitmap(
         &self,
@@ -647,7 +648,8 @@ impl Tree {
         }
     }
 
-    /// Renders a 2D slice of `region` at the given `z` height to a set of 2D contours.
+    /// Renders a 2D slice of `region` at the given `z` height to a set of 2D
+    /// contours.
     pub fn to_contour_2d<T: Point2>(
         &self,
         region: Region2,
@@ -655,7 +657,8 @@ impl Tree {
         resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         match unsafe {
-            sys::libfive_tree_render_slice(self.0, region.0, z, resolution).as_mut()
+            sys::libfive_tree_render_slice(self.0, region.0, z, resolution)
+                .as_mut()
         } {
             Some(raw_contours) => {
                 let contours = (0..raw_contours.count)
@@ -693,7 +696,8 @@ impl Tree {
         resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice3(self.0, region.0, z, resolution).as_ref()
+            sys::libfive_tree_render_slice3(self.0, region.0, z, resolution)
+                .as_ref()
         };
 
         if let Some(raw_contours) = raw_contours {
@@ -758,7 +762,12 @@ impl Tree {
         let path = c_string_from_path(path);
 
         if unsafe {
-            sys::libfive_tree_save_mesh(self.0, region.0, resolution, path.as_ptr())
+            sys::libfive_tree_save_mesh(
+                self.0,
+                region.0,
+                resolution,
+                path.as_ptr(),
+            )
         } {
             Ok(())
         } else {
@@ -776,7 +785,7 @@ impl Tree {
     /// `packed_opcodes` feature is enabled.
     ///
     /// </div>
-    pub fn save(&self, path: impl AsRef<Path>,) -> Result<()> {
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = c_string_from_path(path);
 
         if unsafe { sys::libfive_tree_save(self.0, path.as_ptr()) } {
@@ -830,7 +839,12 @@ fn c_string_from_path<P: AsRef<Path>>(path: P) -> CString {
 fn test_2d() -> Result<()> {
     let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
 
-    circle.to_svg("circle.svg", &Region2::new(-2.0, 2.0, -2.0, 2.0), 0.0, 0.1);
+    circle.write_svg(
+        "circle.svg",
+        &Region2::new(-2.0, 2.0, -2.0, 2.0),
+        0.0,
+        0.1,
+    );
 
     Ok(())
 }
@@ -868,9 +882,6 @@ fn test_3d() -> Result<()> {
 
     Ok(())
 }
-
-
-
 
 /*
 #[test]
