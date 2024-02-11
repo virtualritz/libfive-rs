@@ -39,7 +39,7 @@
 //! f_rep_shape.to_stl(
 //!     "f-rep-shape.stl",
 //!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-//!     &BRepSettings::default(),
+//!     0.01,
 //! )?;
 //! # }
 //! ```
@@ -68,12 +68,10 @@
 use core::{
     convert::TryInto,
     ffi::c_void,
-    mem,
     ops::{Add, Div, Mul, Neg, Rem, Sub},
     ptr, result, slice,
 };
 use libfive_sys as sys;
-use num_enum::{FromPrimitive, IntoPrimitive};
 use std::ffi::CString;
 
 #[cfg(feature = "ahash")]
@@ -216,68 +214,13 @@ impl<T: Point3> From<TriangleMesh<T>> for FlatTriangleMesh {
             positions: mesh
                 .positions
                 .into_iter()
-                .flat_map(|point| {
-                    std::array::IntoIter::new([point.x(), point.y(), point.z()])
-                })
+                .flat_map(|point| [point.x(), point.y(), point.z()])
                 .collect(),
             triangles: mesh
                 .triangles
                 .into_iter()
-                .flat_map(|triangle| std::array::IntoIter::new(triangle))
+                .flatten()
                 .collect(),
-        }
-    }
-}
-
-/// The algorithm used for computing a
-/// [boundary representation](https://en.wikipedia.org/wiki/Boundary_representation)
-/// from a [`Tree`].
-#[derive(Copy, Clone, Debug, Eq, FromPrimitive, IntoPrimitive, PartialEq)]
-#[repr(u32)]
-pub enum BRepAlgorithm {
-    #[num_enum(default)]
-    DualContouring = sys::libfive_brep_alg_DUAL_CONTOURING as _,
-    IsoSimplex = sys::libfive_brep_alg_ISO_SIMPLEX as _,
-    Hybrid = sys::libfive_brep_alg_HYBRID as _,
-}
-
-/// [Boundary representation](https://en.wikipedia.org/wiki/Boundary_representation)
-/// settings passed to any of the rendering/export functions.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct BRepSettings {
-    /// The meshing region is subdivided until the smallest region's edge is
-    /// below 1/`resolution` in size. Make this larger to get a higher
-    /// resolution model.
-    ///
-    /// In other words: should be approximately half the model's smallest
-    /// feature size. Subdivision halts when all sides of the region are below
-    /// it.
-    pub resolution: f32,
-    /// This value is used when deciding whether to collapse cells. If it is
-    /// very large, then only linear regions are merged.  Set as `0.1` to
-    /// completely disable cell merging.
-    pub quality: f32,
-    /// Number of worker threads to use while meshing.  Set as 0 to use the
-    /// platform's-default number of threads.
-    pub workers: u32,
-    /// The meshing algorithm.
-    pub algorithm: BRepAlgorithm,
-}
-
-/// Defaults for rendering a [`Tree`].
-///
-/// `resolution`: `10`
-/// `quality`: `8`
-/// `workers`: `0` (determined automatically)
-/// `algorithm`: [`DualContouring`](BRepAlgorithm::DualContouring)
-impl Default for BRepSettings {
-    fn default() -> Self {
-        let s = unsafe { sys::libfive_brep_settings_default() };
-        Self {
-            resolution: s.res,
-            quality: s.quality,
-            workers: s.workers,
-            algorithm: s.alg.into(),
         }
     }
 }
@@ -385,16 +328,10 @@ impl Evaluator {
         &self,
         path: impl Into<Vec<u8>>,
         region: &Region3,
-        settings: &BRepSettings,
     ) -> Result<()> {
         let path = CString::new(path).unwrap();
         if unsafe {
-            sys::libfive_evaluator_save_mesh(
-                self.0,
-                region.0,
-                mem::transmute(*settings),
-                path.as_ptr(),
-            )
+            sys::libfive_evaluator_save_mesh(self.0, region.0, path.as_ptr())
         } {
             Ok(())
         } else {
@@ -553,12 +490,6 @@ macro_rules! op_binary {
 #[derive(Eq, PartialEq)]
 pub struct Tree(sys::libfive_tree);
 
-impl Clone for Tree {
-    fn clone(&self) -> Self {
-        Self(unsafe { sys::libfive_tree_clone(self.0) })
-    }
-}
-
 /// An alias for [`Tree`].
 ///
 /// Used to make the kind of sensible input more obvious for some operators.
@@ -680,20 +611,14 @@ impl Tree {
     pub fn to_triangle_mesh<T: Point3>(
         &self,
         region: &Region3,
-        settings: &BRepSettings,
+        res: f32,
     ) -> Option<TriangleMesh<T>> {
         match unsafe {
-            sys::libfive_tree_render_mesh(
-                self.0,
-                region.0,
-                mem::transmute(*settings),
-            )
-            .as_mut()
+            sys::libfive_tree_render_mesh(self.0, region.0, res).as_mut()
         } {
             Some(raw_mesh) => {
                 let mesh = TriangleMesh::<T> {
                     positions: (0..raw_mesh.vert_count)
-                        .into_iter()
                         .map(|index| {
                             let vertex =
                                 &unsafe { *raw_mesh.verts.add(index as _) };
@@ -701,7 +626,6 @@ impl Tree {
                         })
                         .collect(),
                     triangles: (0..raw_mesh.tri_count)
-                        .into_iter()
                         .map(|index| {
                             let triangle =
                                 &unsafe { *raw_mesh.tris.add(index as _) };
@@ -725,26 +649,18 @@ impl Tree {
         &self,
         region: Region2,
         z: f32,
-        settings: &BRepSettings,
+        res: f32,
     ) -> Option<Vec<Contour<T>>> {
         match unsafe {
-            sys::libfive_tree_render_slice(
-                self.0,
-                region.0,
-                z,
-                mem::transmute(*settings),
-            )
-            .as_mut()
+            sys::libfive_tree_render_slice(self.0, region.0, z, res).as_mut()
         } {
             Some(raw_contours) => {
                 let contours = (0..raw_contours.count)
-                    .into_iter()
                     .map(|index| {
                         let contour =
                             unsafe { raw_contours.cs.add(index as _).as_ref() }
                                 .unwrap();
                         (0..contour.count)
-                            .into_iter()
                             .map(|index| {
                                 let point = unsafe {
                                     contour.pts.add(index as _).as_ref()
@@ -771,28 +687,20 @@ impl Tree {
         &self,
         region: Region2,
         z: f32,
-        settings: &BRepSettings,
+        res: f32,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice3(
-                self.0,
-                region.0,
-                z,
-                mem::transmute(*settings),
-            )
-            .as_ref()
+            sys::libfive_tree_render_slice3(self.0, region.0, z, res).as_ref()
         };
 
         if let Some(raw_contours) = raw_contours {
             let contours = (0..raw_contours.count)
-                .into_iter()
                 .map(|index| {
                     let contour =
                         unsafe { raw_contours.cs.add(index as _).as_ref() }
                             .unwrap();
 
                     (0..contour.count)
-                        .into_iter()
                         .map(|index| {
                             let point =
                                 unsafe { contour.pts.add(index as _).as_ref() }
@@ -819,21 +727,17 @@ impl Tree {
         path: impl Into<Vec<u8>>,
         region: &Region2,
         z: f32,
-        settings: &BRepSettings,
-    ) -> Result<()> {
+        res: f32,
+    ) {
         let path = CString::new(path).unwrap();
-        if unsafe {
+        unsafe {
             sys::libfive_tree_save_slice(
                 self.0,
                 region.0,
                 z,
-                mem::transmute(*settings),
+                res,
                 path.as_ptr(),
-            )
-        } {
-            Ok(())
-        } else {
-            Err(Error::FileWriteFailed)
+            );
         }
     }
 
@@ -842,16 +746,11 @@ impl Tree {
         &self,
         path: impl Into<Vec<u8>>,
         region: &Region3,
-        settings: &BRepSettings,
+        res: f32,
     ) -> Result<()> {
         let path = CString::new(path).unwrap();
         if unsafe {
-            sys::libfive_tree_save_mesh(
-                self.0,
-                region.0,
-                mem::transmute(*settings),
-                path.as_ptr(),
-            )
+            sys::libfive_tree_save_mesh(self.0, region.0, res, path.as_ptr())
         } {
             Ok(())
         } else {
@@ -917,12 +816,7 @@ pub use stdlib::*;
 fn test_2d() -> Result<()> {
     let circle = Tree::x().square() + Tree::y().square() - 1.0.into();
 
-    circle.to_svg(
-        "circle.svg",
-        &Region2::new(-2.0, 2.0, -2.0, 2.0),
-        0.0,
-        &BRepSettings::default(),
-    )?;
+    circle.to_svg("circle.svg", &Region2::new(-2.0, 2.0, -2.0, 2.0), 0.0, 0.1);
 
     Ok(())
 }
@@ -955,7 +849,7 @@ fn test_3d() -> Result<()> {
     f_rep_shape.to_stl(
         "f-rep-shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        &BRepSettings::default(),
+        0.01,
     )?;
 
     Ok(())
@@ -996,10 +890,7 @@ fn test_eval_3d() -> Result<()> {
     csg_shape.to_stl(
         "csg_shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        &BRepSettings {
-            //workers: 0,
-            ..Default::default()
-        },
+        0.01,
     )?;
     /*
     variables.set("inner_radius", 0.4);

@@ -9,60 +9,80 @@
 
 /// # Csg <a name="csg"></a>
 impl Tree {
-
     pub fn union(self, b: Tree) -> Self {
-        Self(unsafe { sys::libfivestd_union(self.0, b.0) })
+        Self(unsafe { sys::_union(self.0, b.0) })
     }
 
     pub fn intersection(self, b: Tree) -> Self {
-        Self(unsafe { sys::libfivestd_intersection(self.0, b.0) })
+        Self(unsafe { sys::intersection(self.0, b.0) })
     }
 
     pub fn inverse(self) -> Self {
-        Self(unsafe { sys::libfivestd_inverse(self.0) })
+        Self(unsafe { sys::inverse(self.0) })
     }
 
     pub fn difference(self, b: Tree) -> Self {
-        Self(unsafe { sys::libfivestd_difference(self.0, b.0) })
+        Self(unsafe { sys::difference(self.0, b.0) })
     }
 
     pub fn offset(self, o: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_offset(self.0, o.0) })
+        Self(unsafe { sys::offset(self.0, o.0) })
     }
 
     pub fn clearance(self, b: Tree, offset: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_clearance(self.0, b.0, offset.0) })
+        Self(unsafe { sys::clearance(self.0, b.0, offset.0) })
     }
 
     pub fn shell(self, offset: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_shell(self.0, offset.0) })
+        Self(unsafe { sys::shell(self.0, offset.0) })
     }
 
     pub fn blend_expt(self, b: Tree, m: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_blend_expt(self.0, b.0, m.0) })
+        Self(unsafe { sys::blend_expt(self.0, b.0, m.0) })
     }
 
     pub fn blend_expt_unit(self, b: Tree, m: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_blend_expt_unit(self.0, b.0, m.0) })
+        Self(unsafe { sys::blend_expt_unit(self.0, b.0, m.0) })
     }
 
     pub fn blend_rough(self, b: Tree, m: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_blend_rough(self.0, b.0, m.0) })
+        Self(unsafe { sys::blend_rough(self.0, b.0, m.0) })
     }
 
     pub fn blend_difference(self, b: Tree, m: TreeFloat, o: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_blend_difference(self.0, b.0, m.0, o.0) })
+        Self(unsafe { sys::blend_difference(self.0, b.0, m.0, o.0) })
     }
 
     pub fn morph(self, b: Tree, m: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_morph(self.0, b.0, m.0) })
+        Self(unsafe { sys::morph(self.0, b.0, m.0) })
     }
 
     pub fn loft(self, b: Tree, zmin: TreeFloat, zmax: TreeFloat) -> Self {
-        Self(unsafe { sys::libfivestd_loft(self.0, b.0, zmin.0, zmax.0) })
+        Self(unsafe { sys::loft(self.0, b.0, zmin.0, zmax.0) })
     }
 
-    pub fn loft_between(self, b: Tree, lower: TreeVec3, upper: TreeVec3) -> Self {
-        Self(unsafe { sys::libfivestd_loft_between(self.0, b.0, sys::tvec3 { x: lower.x.0, y: lower.y.0, z: lower.z.0 }, sys::tvec3 { x: upper.x.0, y: upper.y.0, z: upper.z.0 }) })
+    pub fn loft_between(
+        self,
+        b: Tree,
+        lower: TreeVec3,
+        upper: TreeVec3,
+    ) -> Self {
+        Self(unsafe {
+            sys::loft_between(
+                self.0,
+                b.0,
+                sys::tvec3 {
+                    x: lower.x.0,
+                    y: lower.y.0,
+                    z: lower.z.0,
+                },
+                sys::tvec3 {
+                    x: upper.x.0,
+                    y: upper.y.0,
+                    z: upper.z.0,
+                },
+            )
+        })
     }
 }
+

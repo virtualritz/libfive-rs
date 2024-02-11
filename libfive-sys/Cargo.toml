@@ -1,8 +1,8 @@
 [package]
 name = "libfive-sys"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 keywords = ["3d", "geometry", "graphics", "parametric", "procedural"]
 categories = ["graphics", "mathematics", "multimedia", "rendering"]
@@ -24,6 +24,6 @@ exclude = [
 packed_opcodes = []
 
 [build-dependencies]
-cmake = "0.1.45"
-bindgen = "0.58.1"
+cmake = "0.1.50"
+bindgen = "0.69.4"
 #vcpkg = "0.2.12"

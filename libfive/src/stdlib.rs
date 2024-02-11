@@ -82,15 +82,12 @@ impl Tree {
     pub fn difference_multi(self, trees: Trees) -> Self {
         if trees.is_empty() {
             self
-        } else if 1 == trees.len() {
-            self.intersection(trees[0].clone())
         } else {
-            let first = trees[0].clone();
             self.intersection(
                 trees
                     .into_iter()
-                    .skip(1)
-                    .fold(first, |a, b| a.union(b))
+                    .reduce(|a, b| a.union(b))
+                    .expect("there is at least one tree")
                     .inverse(),
             )
         }
