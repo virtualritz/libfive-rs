@@ -1,6 +1,7 @@
 # `libfive` <img src="https://raw.githubusercontent.com/virtualritz/libfive-rs/master/libfive/libfive-logo.png" alt="libfive logo" width="15%" padding-bottom="5%" align="right" vertical-align="top">
 
 A Rust wrapper for [*libfive*](https://libfive.com/).
+
 ## Example
 
 ```rust
@@ -31,7 +32,8 @@ let f_rep_shape = Tree::sphere(1.0.into(), TreeVec3::default())
 f_rep_shape.to_stl(
     "f_rep_shape.stl",
     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-    &BRepSettings::default(),
+    // Resolution
+    0.01,
 )?;
 ```
 

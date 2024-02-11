@@ -14,10 +14,10 @@ homepage = "https://libfive.com/"
 
 [features]
 default = ["ahash", "stdlib"]
-# "Tightly pack opcodes (breaks compatibility with older saved f-reps).
+# Tightly pack opcodes (breaks compatibility with older saved f-reps).
 packed_opcodes = ["libfive-sys/packed_opcodes"]
 stdlib = []
 
 [dependencies]
-libfive-sys = { path = "../libfive-sys" }
+libfive-sys = "0.2.0"
 ahash = { version = "0.8.7", optional = true }

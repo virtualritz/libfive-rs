@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [features]
-# "Tightly pack opcodes (breaks compatibility with older saved f-reps).
+# Tightly pack opcodes (breaks compatibility with older saved f-reps).
 packed_opcodes = []
 
 [build-dependencies]

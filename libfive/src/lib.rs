@@ -63,6 +63,7 @@
 //!   [dependencies.libfive]
 //!   default-features = false
 //!   ```
+//!
 //! * `packed_opcodes` -- Tightly pack opcodes. This breaks compatibility with
 //!   older saved f-rep files. See [`Tree::save()/lood()`](Tree::save).
 use core::{
@@ -72,13 +73,17 @@ use core::{
     ptr, result, slice,
 };
 use libfive_sys as sys;
-use std::ffi::CString;
+use std::{ffi::CString, path::Path};
 
 #[cfg(feature = "ahash")]
 type HashMap<K, V> = ahash::AHashMap<K, V>;
-
 #[cfg(not(feature = "ahash"))]
 type HashMap<K, V> = std::collections::HashMap<K, V>;
+
+#[cfg(feature = "stdlib")]
+mod stdlib;
+#[cfg(feature = "stdlib")]
+pub use stdlib::*;
 
 /// A specialized [`Result`] type for `libfive` operations.
 ///
@@ -98,7 +103,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum Error {
-    /// The sepcified variable could not be updated.
+    /// The specified variable could not be updated.
     VariablesCouldNotBeUpdated,
     /// The requested variable could not be found.
     VariableNotFound,
@@ -216,11 +221,7 @@ impl<T: Point3> From<TriangleMesh<T>> for FlatTriangleMesh {
                 .into_iter()
                 .flat_map(|point| [point.x(), point.y(), point.z()])
                 .collect(),
-            triangles: mesh
-                .triangles
-                .into_iter()
-                .flatten()
-                .collect(),
+            triangles: mesh.triangles.into_iter().flatten().collect(),
         }
     }
 }
@@ -324,12 +325,14 @@ impl Evaluator {
         }
     }
 
-    pub fn to_stl(
+    /// Computes a mesh and saves it to `path` in [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
+    pub fn write_stl(
         &self,
-        path: impl Into<Vec<u8>>,
+        path: impl AsRef<Path>,
         region: &Region3,
     ) -> Result<()> {
-        let path = CString::new(path).unwrap();
+        let path = c_string_from_path(path);
+
         if unsafe {
             sys::libfive_evaluator_save_mesh(self.0, region.0, path.as_ptr())
         } {
@@ -584,17 +587,17 @@ impl Tree {
 /// ## Common Arguments
 ///
 /// * `region` -- A bounding box that will be subdivided into an
-///   quadtree/octree.For clean lines/triangles, it should be near-cubical.But
+///   quadtree/octree. For clean lines/triangles, it should be near-cubical. But
 ///   this is not a hard requirement.
 ///
-/// * `settings` -- See [`BRepSettings`].
+/// * `resolution` -- The meshing region is subdivided until the smallest region
+///   edge is below `resolution` in size. Make this smaller to get a
+///   higher-resolution model.
+///
+///   To not loose any detail this should be approximately half the model's
+///   smallest feature size.
 impl Tree {
-    /// Renders a 2D slice at the given `z` height into a [`Bitmap`].
-    ///
-    /// ## Arguments
-    /// * `resolution` -- Should be approximately half the model's smallest
-    ///   feature size. Subdivision halts when all sides of the region are below
-    ///   it.
+    /// Renders a 2D slice of `region` at the given `z` height into a [`Bitmap`].
     #[inline]
     pub fn to_bitmap(
         &self,
@@ -607,14 +610,14 @@ impl Tree {
         })
     }
 
-    /// Renders the tree to a [`TriangleMesh`].
+    /// Renders `region` to a [`TriangleMesh`].
     pub fn to_triangle_mesh<T: Point3>(
         &self,
         region: &Region3,
-        res: f32,
+        resolution: f32,
     ) -> Option<TriangleMesh<T>> {
         match unsafe {
-            sys::libfive_tree_render_mesh(self.0, region.0, res).as_mut()
+            sys::libfive_tree_render_mesh(self.0, region.0, resolution).as_mut()
         } {
             Some(raw_mesh) => {
                 let mesh = TriangleMesh::<T> {
@@ -644,15 +647,15 @@ impl Tree {
         }
     }
 
-    /// Renders a tree to a set of 2D contours.
+    /// Renders a 2D slice of `region` at the given `z` height to a set of 2D contours.
     pub fn to_contour_2d<T: Point2>(
         &self,
         region: Region2,
         z: f32,
-        res: f32,
+        resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         match unsafe {
-            sys::libfive_tree_render_slice(self.0, region.0, z, res).as_mut()
+            sys::libfive_tree_render_slice(self.0, region.0, z, resolution).as_mut()
         } {
             Some(raw_contours) => {
                 let contours = (0..raw_contours.count)
@@ -682,15 +685,15 @@ impl Tree {
         }
     }
 
-    /// Renders a tree to a set of 3D contours.
+    /// Renders `region` to a set of 3D contours.
     pub fn to_contour_3d<T: Point3>(
         &self,
         region: Region2,
         z: f32,
-        res: f32,
+        resolution: f32,
     ) -> Option<Vec<Contour<T>>> {
         let raw_contours = unsafe {
-            sys::libfive_tree_render_slice3(self.0, region.0, z, res).as_ref()
+            sys::libfive_tree_render_slice3(self.0, region.0, z, resolution).as_ref()
         };
 
         if let Some(raw_contours) = raw_contours {
@@ -721,36 +724,41 @@ impl Tree {
         }
     }
 
-    /// Computes a contour and saves it to `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format.
-    pub fn to_svg(
+    /// Computes a 2D slice of `region` at the given `z` height and saves it to
+    /// `path` in [`SVG`](https://en.wikipedia.org/wiki/Scalable_Vector_Graphics)
+    /// format.
+    pub fn write_svg(
         &self,
-        path: impl Into<Vec<u8>>,
+        path: impl AsRef<Path>,
         region: &Region2,
         z: f32,
-        res: f32,
+        resolution: f32,
     ) {
-        let path = CString::new(path).unwrap();
+        let path = c_string_from_path(path);
+
         unsafe {
             sys::libfive_tree_save_slice(
                 self.0,
                 region.0,
                 z,
-                res,
+                resolution,
                 path.as_ptr(),
             );
         }
     }
 
-    /// Computes a mesh and saves it to `path` in [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
-    pub fn to_stl(
+    /// Computes a mesh of `region` and saves it to `path` in
+    /// [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
+    pub fn write_stl(
         &self,
-        path: impl Into<Vec<u8>>,
+        path: impl AsRef<Path>,
         region: &Region3,
-        res: f32,
+        resolution: f32,
     ) -> Result<()> {
-        let path = CString::new(path).unwrap();
+        let path = c_string_from_path(path);
+
         if unsafe {
-            sys::libfive_tree_save_mesh(self.0, region.0, res, path.as_ptr())
+            sys::libfive_tree_save_mesh(self.0, region.0, resolution, path.as_ptr())
         } {
             Ok(())
         } else {
@@ -760,12 +768,17 @@ impl Tree {
 
     /// Serializes the tree to a file.
     ///
+    /// <div class="warning">
+    ///
     /// The file format is not archival and may change without notice.
     ///
-    /// Note that files may fail to load with older versions of `libfive` if
-    /// the `packed_opcodes` feature is enabled.
-    pub fn save(&self, path: impl Into<Vec<u8>>) -> Result<()> {
-        let path = CString::new(path).unwrap();
+    /// Saved files may fail to load with older versions of `libfive` if the
+    /// `packed_opcodes` feature is enabled.
+    ///
+    /// </div>
+    pub fn save(&self, path: impl AsRef<Path>,) -> Result<()> {
+        let path = c_string_from_path(path);
+
         if unsafe { sys::libfive_tree_save(self.0, path.as_ptr()) } {
             Ok(())
         } else {
@@ -775,8 +788,11 @@ impl Tree {
 
     /// Deserializes a tree from a file.
     ///
-    /// Note that old files may fail to load if the `packed_opcodes` feature is
-    /// enabled.
+    /// <div class="warning">
+    ///
+    /// Old files may fail to load if the `packed_opcodes` feature is enabled.
+    ///
+    /// </div>
     pub fn load(&self, path: impl Into<Vec<u8>>) -> Result<Tree> {
         let path = CString::new(path).unwrap();
         match unsafe { sys::libfive_tree_load(path.as_ptr()).as_mut() } {
@@ -806,11 +822,9 @@ impl Neg for Tree {
     }
 }
 
-#[cfg(feature = "stdlib")]
-mod stdlib;
-
-#[cfg(feature = "stdlib")]
-pub use stdlib::*;
+fn c_string_from_path<P: AsRef<Path>>(path: P) -> CString {
+    CString::new(path.as_ref().as_os_str().as_encoded_bytes()).unwrap()
+}
 
 #[test]
 fn test_2d() -> Result<()> {
@@ -846,7 +860,7 @@ fn test_3d() -> Result<()> {
             .reflect_yz(),
         ]);
 
-    f_rep_shape.to_stl(
+    f_rep_shape.write_stl(
         "f-rep-shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
         0.01,
@@ -854,6 +868,10 @@ fn test_3d() -> Result<()> {
 
     Ok(())
 }
+
+
+
+
 /*
 #[test]
 #[cfg(feature = "stdlib")]
