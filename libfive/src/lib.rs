@@ -39,7 +39,7 @@
 //! f_rep_shape.write_stl(
 //!     "f-rep-shape.stl",
 //!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-//!     0.01,
+//!     100.0,
 //! )?;
 //! # }
 //! ```
@@ -590,12 +590,11 @@ impl Tree {
 ///   quadtree/octree. For clean lines/triangles, it should be near-cubical. But
 ///   this is not a hard requirement.
 ///
-/// * `resolution` -- The meshing region is subdivided until the smallest region
-///   edge is below `resolution` in size. Make this smaller to get a
+/// * `resolution` -- The resolution used for meshing. Make this larger to get a
 ///   higher-resolution model.
 ///
-///   To not loose any detail this should be approximately half the model's
-///   smallest feature size.
+///   To not loose any detail this should be approximately one over half the
+///   model's smallest feature size.
 impl Tree {
     /// Renders a 2D slice of `region` at the given `z` height into a
     /// [`Bitmap`].
@@ -843,7 +842,7 @@ fn test_2d() -> Result<()> {
         "circle.svg",
         &Region2::new(-2.0, 2.0, -2.0, 2.0),
         0.0,
-        0.1,
+        10.0,
     );
 
     Ok(())
@@ -877,7 +876,7 @@ fn test_3d() -> Result<()> {
     f_rep_shape.write_stl(
         "f-rep-shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        0.01,
+        100.0,
     )?;
 
     Ok(())
@@ -919,7 +918,7 @@ fn test_eval_3d() -> Result<()> {
     csg_shape.to_stl(
         "csg_shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        0.01,
+        100.0,
     )?;
     /*
     variables.set("inner_radius", 0.4);

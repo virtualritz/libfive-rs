@@ -33,7 +33,7 @@ f_rep_shape.to_stl(
     "f_rep_shape.stl",
     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
     // Resolution
-    0.01,
+    100.0,
 )?;
 ```
 
