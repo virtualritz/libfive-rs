@@ -39,7 +39,8 @@
 //! f_rep_shape.write_stl(
 //!     "f-rep-shape.stl",
 //!     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-//!     100.0,
+//!     // Subdivisions
+//!     10.0,
 //! )?;
 //! # }
 //! ```
@@ -65,15 +66,17 @@
 //!   ```
 //!
 //! * `packed_opcodes` -- Tightly pack opcodes. This breaks compatibility with
-//!   older saved f-rep files. See [`Tree::save()/lood()`](Tree::save).
+//!   older saved f-rep files.
+//!
+//!   See [`Tree::save()`](Tree::save)/[`load()`](Tree::load).
 use core::{
-    convert::TryInto,
     ffi::c_void,
     ops::{Add, Div, Mul, Neg, Rem, Sub},
     ptr, result, slice,
 };
 use libfive_sys as sys;
 use std::{ffi::CString, path::Path};
+use derive_more::{Display, Error, From};
 
 #[cfg(feature = "ahash")]
 type HashMap<K, V> = ahash::AHashMap<K, V>;
@@ -90,7 +93,7 @@ pub use stdlib::*;
 /// This type is broadly used across `libvive` for any operation which may
 /// produce an error.
 ///
-/// This type is generally used to avoid writing out [`Error`] directly and
+/// This type is generally used to avoid writing out [`enum@Error`] directly and
 /// is otherwise a direct mapping to [`Result`].
 pub type Result<T> = result::Result<T, Error>;
 
@@ -100,18 +103,18 @@ pub type Result<T> = result::Result<T, Error>;
 /// exhaustively match against it.
 ///
 /// [`libfive::Error`]: Error
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Display, Eq, Error, From, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum Error {
     /// The specified variable could not be updated.
     VariablesCouldNotBeUpdated,
     /// The requested variable could not be found.
     VariableNotFound,
-    /// The variable with this name was already added,
+    /// The variable with this name was already added.
     VariableAlreadyAdded,
     /// The resp. file could not be opened for writing.
     FileWriteFailed,
-    /// The resp. file could not be opened for reading..
+    /// The resp. file could not be opened for reading.
     FileReadFailed,
     /// The queried tree is not a constant.
     TreeIsNotConstant,
@@ -325,7 +328,8 @@ impl Evaluator {
         }
     }
 
-    /// Computes a mesh and saves it to `path` in [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
+    /// Computes a mesh and saves it to `path` in
+    /// [`STL`](https://en.wikipedia.org/wiki/STL_(file_format)) format.
     pub fn write_stl(
         &self,
         path: impl AsRef<Path>,
@@ -499,7 +503,7 @@ pub struct Tree(sys::libfive_tree);
 pub type TreeFloat = Tree;
 
 /// # Constants <a name="constant"></a>
-impl From<f32> for TreeFloat {
+impl From<f32> for Tree {
     /// Creates a constant [`Tree`].
     fn from(constant: f32) -> Self {
         Self(unsafe { sys::libfive_tree_const(constant) })
@@ -587,14 +591,17 @@ impl Tree {
 /// ## Common Arguments
 ///
 /// * `region` -- A bounding box that will be subdivided into an
-///   quadtree/octree. For clean lines/triangles, it should be near-cubical. But
-///   this is not a hard requirement.
+///   quadtree/octree. For clean lines/triangles, it should be near-cubical.
+///   But this is not a hard requirement.
 ///
 /// * `resolution` -- The resolution used for meshing. Make this larger to get a
 ///   higher-resolution model.
 ///
 ///   To not loose any detail this should be approximately one over half the
 ///   model's smallest feature size.
+///
+///   For methods generating 3D data another way to think of resolution is as
+///   the number of subdivision, per unit length, on each axis.
 impl Tree {
     /// Renders a 2D slice of `region` at the given `z` height into a
     /// [`Bitmap`].
@@ -760,6 +767,8 @@ impl Tree {
     ) -> Result<()> {
         let path = c_string_from_path(path);
 
+            println!("Foobar! {:?}", path);
+
         if unsafe {
             sys::libfive_tree_save_mesh(
                 self.0,
@@ -801,8 +810,9 @@ impl Tree {
     /// Old files may fail to load if the `packed_opcodes` feature is enabled.
     ///
     /// </div>
-    pub fn load(&self, path: impl Into<Vec<u8>>) -> Result<Tree> {
-        let path = CString::new(path).unwrap();
+    pub fn load(&self, path: impl AsRef<Path>) -> Result<Tree> {
+        let path = c_string_from_path(path);
+
         match unsafe { sys::libfive_tree_load(path.as_ptr()).as_mut() } {
             Some(tree) => Ok(Self(tree as _)),
             None => Err(Error::FileReadFailed),
@@ -876,7 +886,8 @@ fn test_3d() -> Result<()> {
     f_rep_shape.write_stl(
         "f-rep-shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        100.0,
+        // Subdivisions
+        10.0,
     )?;
 
     Ok(())
@@ -915,16 +926,16 @@ fn test_eval_3d() -> Result<()> {
     //let mut evaluator = Evaluator::new(&csg_shape, &variables);
     //evaluator.update(&variables);
 
-    csg_shape.to_stl(
+    csg_shape.write_stl(
         "csg_shape.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-        100.0,
+        10.0,
     )?;
     /*
     variables.set("inner_radius", 0.4);
     evaluator.update(&variables);
 
-    csg_shape.to_stl(
+    csg_shape.write_stl(
         "csg_shape_0_4.stl",
         &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
         10.0,

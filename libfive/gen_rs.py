@@ -12,7 +12,7 @@ def arg_in(a, use_self):
         else:
             return '{}: Tree'.format(a.name)
     elif a.type == 'tfloat':
-        return '{}: TreeFloat'.format(a.name)
+        return '{}: TreeF32'.format(a.name)
     elif a.type == 'tvec2':
         return '{}: TreeVec2'.format(a.name)
     elif a.type == 'tvec3':
@@ -93,7 +93,7 @@ def arg_call(a):
     if a.type == 'libfive_tree':
         return 'libfive::Tree'
     elif a.type == 'tfloat':
-        return 'TreeFloat' # same as float
+        return 'TreeF32' # same as float
     elif a.type == 'tvec2':
         return 'TreeVec2'
     elif a.type == 'tvec3':
