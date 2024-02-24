@@ -66,7 +66,7 @@ cargo doc -p libfive --no-deps --all-features --open
   default-features = false
   ```
 
-* `packed_opcodes` - Tightly pack opcodes. This breaks compatibility with
+* `packed_opcodes` – Tightly pack opcodes. This breaks compatibility with
   older saved f-rep files.
 
 ## Dependencies
@@ -82,7 +82,7 @@ brew install cmake pkg-config eigen libpng boost
 ### Ubuntu/Debian
 
 `libfive` should build out of the box on the latest Ubuntu LTS (currently
-20.04). If you find that's not the case, please open an issue in the [upstream
+23.04). If you find that's not the case, please open an issue in the [upstream
 repository](https://github.com/libfive/libfive/issues)!
 
 Install the following dependencies with `apt`:
@@ -115,8 +115,8 @@ Next, install dependencies using `vcpkg`.
 
 > :warning: This step touches many files, so you may want to disable the _Antimalware
 Service Executable_, which will otherwise scan every single file and slow things
-down dramatically: in `Windows Security`→`Virus & threat protection settings`,
-uncheck `Real-time protection`.
+down dramatically: in **Windows Security→Virus & threat protection settings**,
+uncheck **Real-time protection**.
 
 In a Windows _Command Prompt_:
 
