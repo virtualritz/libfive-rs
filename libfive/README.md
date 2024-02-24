@@ -32,8 +32,8 @@ let f_rep_shape = Tree::sphere(1.0.into(), TreeVec3::default())
 f_rep_shape.to_stl(
     "f_rep_shape.stl",
     &Region3::new(-2.0, 2.0, -2.0, 2.0, -2.0, 2.0),
-    // Resolution
-    100.0,
+    // Subdivisions
+    10.0,
 )?;
 ```
 
@@ -44,7 +44,8 @@ This results in this STL mesh:
 ## Documentation
 
 Build docs locally:
-```
+
+```shell
 cargo doc -p libfive --no-deps --all-features --open
 ```
 
@@ -74,7 +75,7 @@ cargo doc -p libfive --no-deps --all-features --open
 
 With `homebrew` installed, run:
 
-```
+```shell
 brew install cmake pkg-config eigen libpng boost
 ```
 
@@ -86,7 +87,7 @@ repository](https://github.com/libfive/libfive/issues)!
 
 Install the following dependencies with `apt`:
 
-```
+```shell
 sudo apt-get install cmake pkg-config libeigen3-dev libpng-dev libboost-all-dev
 ```
 
@@ -94,7 +95,7 @@ sudo apt-get install cmake pkg-config libeigen3-dev libpng-dev libboost-all-dev
 
 Install the following dependencies:
 
-```
+```shell
 sudo pacman -S cmake pkgconf eigen libpng boost boost-libs
 ```
 
@@ -118,17 +119,19 @@ down dramatically: in `Windows Security`→`Virus & threat protection settings`,
 uncheck `Real-time protection`.
 
 In a Windows _Command Prompt_:
-```
+
+```shell
 git clone https://github.com/Microsoft/vcpkg.git
 .\vcpkg\bootstrap-vcpkg.bat
 .\vcpkg\vcpkg.exe install --triplet x64-windows eigen3 boost-container boost-bimap boost-interval boost-lockfree boost-functional boost-algorithm boost-math libpng
 ```
+
 Go get some coffee or something – this will take a while.
 
-# Building
+## Building
 
 Just the usual.
 
-```
+```shell
 cargo build
 ```
