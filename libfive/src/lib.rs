@@ -767,8 +767,6 @@ impl Tree {
     ) -> Result<()> {
         let path = c_string_from_path(path);
 
-            println!("Foobar! {:?}", path);
-
         if unsafe {
             sys::libfive_tree_save_mesh(
                 self.0,
