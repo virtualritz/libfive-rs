@@ -2,6 +2,10 @@
 
 A Rust wrapper for [*libfive*](https://libfive.com/).
 
+> **⚠** ***This is not maintained any more!***
+> 
+> *You probably want to look at [`fidget`](https://github.com/mkeeter/fidget) instead if you're looking for SDF/implict surfaces in Rust*.
+
 For more information on the high level wrapper see [the README in the
 `libfive`](https://github.com/virtualritz/libfive-rs/tree/master/libfive)
 folder.
